@@ -1,0 +1,20 @@
+# Core AI / LLM frameworks
+swarms>=6.0.0
+anthropic>=0.40.0
+openai>=1.50.0
+
+# Supabase
+supabase>=2.0.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# HTTP / search
+requests>=2.31.0
+duckduckgo-search>=6.0.0   # Free fallback; optional if SerpAPI is used
+
+# Utilities (already stdlib, listed for clarity)
+# json, logging, pathlib, argparse → stdlib, no install needed
