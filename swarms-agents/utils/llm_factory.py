@@ -1,12 +1,20 @@
 """
-LLM Factory - returns the correct LLM object based on model name.
-Supports: claude-3-5-sonnet, gpt-4-turbo, gpt-4o-mini
+LLM Factory – returns a thin LLMClient wrapper for the given model name.
+
+Supported friendly names:
+    "claude-3-5-sonnet"  → Anthropic SDK  (maps to claude-sonnet-4-6)
+    "gpt-4-turbo"        → OpenAI SDK
+    "gpt-4o-mini"        → OpenAI SDK
+
+No swarms dependency.
 """
 
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 SUPPORTED_MODELS = {
     "claude-3-5-sonnet": "anthropic",
@@ -14,20 +22,125 @@ SUPPORTED_MODELS = {
     "gpt-4o-mini": "openai",
 }
 
+# Map friendly names → exact API model IDs.
+# claude-3-5-sonnet-20241022 was retired Oct 2025; claude-sonnet-4-6 is the
+# current equivalent and maintains the same quality for long-form Dutch content.
+_ANTHROPIC_IDS = {
+    "claude-3-5-sonnet": "claude-sonnet-4-6",
+}
 
-def get_llm(model_name: str):
+_OPENAI_IDS = {
+    "gpt-4-turbo": "gpt-4-turbo",
+    "gpt-4o-mini": "gpt-4o-mini",
+}
+
+
+class LLMClient:
     """
-    Factory function that returns the correct LLM client based on model_name.
+    Thin wrapper that provides a uniform .run(task, system) → str interface
+    over the native Anthropic and OpenAI Python SDKs.
+
+    Replaces the Swarms Agent class for all agents in this pipeline.
+    """
+
+    def __init__(
+        self,
+        provider: str,
+        model_id: str,
+        api_key: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ):
+        self._provider = provider
+        self._model_id = model_id
+        self._api_key = api_key
+        self._max_tokens = max_tokens
+        self._temperature = temperature
+
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
+
+    def run(self, task: str, system: str = "") -> str:
+        """
+        Call the LLM and return the full text response.
+
+        Args:
+            task:   The user message / task to complete.
+            system: Optional system prompt.
+
+        Returns:
+            The model's text response as a plain string.
+        """
+        logger.debug(
+            "LLMClient.run provider=%s model=%s max_tokens=%d",
+            self._provider, self._model_id, self._max_tokens,
+        )
+        if self._provider == "anthropic":
+            return self._run_anthropic(task, system)
+        return self._run_openai(task, system)
+
+    # ------------------------------------------------------------------
+    # Provider implementations
+    # ------------------------------------------------------------------
+
+    def _run_anthropic(self, task: str, system: str) -> str:
+        """Call the Anthropic Messages API with streaming (avoids timeouts)."""
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=self._api_key)
+        kwargs: dict = {
+            "model": self._model_id,
+            "max_tokens": self._max_tokens,
+            "messages": [{"role": "user", "content": task}],
+        }
+        if system:
+            kwargs["system"] = system
+
+        # Stream by default: prevents HTTP timeouts for long outputs (scripts)
+        with client.messages.stream(**kwargs) as stream:
+            message = stream.get_final_message()
+
+        text_blocks = [b.text for b in message.content if b.type == "text"]
+        return "".join(text_blocks)
+
+    def _run_openai(self, task: str, system: str) -> str:
+        """Call the OpenAI Chat Completions API."""
+        from openai import OpenAI
+
+        client = OpenAI(api_key=self._api_key)
+        messages: list[dict] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": task})
+
+        response = client.chat.completions.create(
+            model=self._model_id,
+            messages=messages,
+            max_tokens=self._max_tokens,
+            temperature=self._temperature,
+        )
+        return response.choices[0].message.content or ""
+
+
+# ---------------------------------------------------------------------------
+# Factory function  (public API — unchanged signature)
+# ---------------------------------------------------------------------------
+
+def get_llm(model_name: str, max_tokens: int = 4096) -> LLMClient:
+    """
+    Factory function that returns the correct LLMClient based on model_name.
 
     Args:
         model_name: One of 'claude-3-5-sonnet', 'gpt-4-turbo', 'gpt-4o-mini'
+        max_tokens: Maximum tokens the model may generate (default 4096).
 
     Returns:
-        Configured LLM object compatible with the swarms framework.
+        LLMClient instance with .run(task, system) → str interface.
 
     Raises:
-        ValueError: If model_name is not supported.
-        EnvironmentError: If the required API key is missing.
+        ValueError:         If model_name is not supported.
+        EnvironmentError:   If the required API key is missing.
     """
     if model_name not in SUPPORTED_MODELS:
         raise ValueError(
@@ -38,57 +151,29 @@ def get_llm(model_name: str):
     provider = SUPPORTED_MODELS[model_name]
 
     if provider == "anthropic":
-        return _build_anthropic_llm(model_name)
-    elif provider == "openai":
-        return _build_openai_llm(model_name)
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
+        model_id = _ANTHROPIC_IDS.get(model_name, model_name)
+        return LLMClient(
+            provider="anthropic",
+            model_id=model_id,
+            api_key=api_key,
+            max_tokens=max_tokens,
+            temperature=0.7,
+        )
+
+    if provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise EnvironmentError("OPENAI_API_KEY is not set.")
+        model_id = _OPENAI_IDS.get(model_name, model_name)
+        return LLMClient(
+            provider="openai",
+            model_id=model_id,
+            api_key=api_key,
+            max_tokens=max_tokens,
+            temperature=0.7,
+        )
 
     raise ValueError(f"Unknown provider '{provider}' for model '{model_name}'")
-
-
-def _build_anthropic_llm(model_name: str):
-    """Build an Anthropic LLM compatible with swarms."""
-    from swarms import Claude
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError(
-            "ANTHROPIC_API_KEY is not set in environment variables."
-        )
-
-    # Map friendly name → exact Anthropic model ID
-    model_id_map = {
-        "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
-    }
-    model_id = model_id_map.get(model_name, model_name)
-
-    return Claude(
-        api_key=api_key,
-        model=model_id,
-        max_tokens=4096,
-        temperature=0.7,
-    )
-
-
-def _build_openai_llm(model_name: str):
-    """Build an OpenAI LLM compatible with swarms."""
-    from swarms import OpenAIChat
-
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise EnvironmentError(
-            "OPENAI_API_KEY is not set in environment variables."
-        )
-
-    # Map friendly name → exact OpenAI model ID
-    model_id_map = {
-        "gpt-4-turbo": "gpt-4-turbo-preview",
-        "gpt-4o-mini": "gpt-4o-mini",
-    }
-    model_id = model_id_map.get(model_name, model_name)
-
-    return OpenAIChat(
-        openai_api_key=api_key,
-        model_name=model_id,
-        max_tokens=4096,
-        temperature=0.7,
-    )

@@ -3,19 +3,19 @@ Content Planning Agent
 ======================
 Input : niche (str), trending_topics (dict), top_performers (list)
 Output: 3 video-ideeën als JSON → geschreven naar video_jobs (status=IDEA)
-Model : claude-3-5-sonnet
+Model : claude-3-5-sonnet  (→ claude-sonnet-4-6 via llm_factory)
+
+No swarms dependency — uses the Anthropic SDK directly via LLMClient.
 """
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
-from swarms import Agent
 
-from utils.llm_factory import get_llm
+from utils.llm_factory import LLMClient, get_llm
 from utils.supabase_client import create_job
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "content_planning.txt"
 
 
 # ---------------------------------------------------------------------------
-# Data models
+# Data models  (unchanged)
 # ---------------------------------------------------------------------------
 
 class VideoIdea(BaseModel):
@@ -41,30 +41,37 @@ class ContentPlanningInput(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Agent factory
+# Minimal agent shim  (replaces swarms.Agent)
 # ---------------------------------------------------------------------------
 
-def build_content_planning_agent() -> Agent:
-    """Build and return a configured Content Planning Swarms Agent."""
+class _Agent:
+    """
+    Lightweight agent that wraps an LLMClient + system prompt.
+    Exposes .run(task) → str, matching the swarms Agent interface used by
+    the rest of this module.
+    """
+
+    def __init__(self, llm: LLMClient, system_prompt: str):
+        self._llm = llm
+        self._system_prompt = system_prompt
+
+    def run(self, task: str) -> str:
+        return self._llm.run(task=task, system=self._system_prompt)
+
+
+# ---------------------------------------------------------------------------
+# Agent factory  (signature unchanged; return type changed from swarms.Agent)
+# ---------------------------------------------------------------------------
+
+def build_content_planning_agent() -> _Agent:
+    """Build and return a configured Content Planning Agent."""
     llm = get_llm("claude-3-5-sonnet")
     system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
-
-    return Agent(
-        agent_name="ContentPlanningAgent",
-        agent_description=(
-            "Genereert 3 sterke YouTube video-ideeën voor de Nederlandse "
-            "vastgoedmarkt op basis van trending topics en kanaaldata."
-        ),
-        llm=llm,
-        system_prompt=system_prompt,
-        max_loops=1,
-        verbose=True,
-        output_type="str",
-    )
+    return _Agent(llm=llm, system_prompt=system_prompt)
 
 
 # ---------------------------------------------------------------------------
-# Main callable
+# Main callable  (signature and behaviour unchanged)
 # ---------------------------------------------------------------------------
 
 def run_content_planning(
@@ -91,8 +98,6 @@ def run_content_planning(
 
     agent = build_content_planning_agent()
 
-    # Build the user-facing task message (template vars are filled here;
-    # the system prompt carries the format instructions).
     task = (
         f"Kanaal niche: {data.niche}\n\n"
         f"Trending onderwerpen:\n{json.dumps(data.trending_topics, ensure_ascii=False, indent=2)}\n\n"
@@ -112,12 +117,11 @@ def run_content_planning(
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers  (unchanged)
 # ---------------------------------------------------------------------------
 
 def _parse_ideas(raw: str) -> list[VideoIdea]:
     """Extract and validate the JSON array from the agent output."""
-    # Strip markdown code fences if present
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()

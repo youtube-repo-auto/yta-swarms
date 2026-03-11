@@ -4,53 +4,59 @@ Scriptwriting Agent
 - Pakt de oudste job met status=RESEARCHED
 - Schrijft een ~2000-woorden Nederlandstalig script (educatief, transformatief)
 - Update de job: script (text) + status → SCRIPTED
-Model: claude-3-5-sonnet (beste voor long-form NL content)
+Model: claude-3-5-sonnet  (→ claude-sonnet-4-6 via llm_factory)
+
+No swarms dependency — uses the Anthropic SDK directly via LLMClient.
 """
 
 import json
 import logging
 from pathlib import Path
 
-from swarms import Agent
-
-from utils.llm_factory import get_llm
+from utils.llm_factory import LLMClient, get_llm
 from utils.supabase_client import VideoJob, get_next_job, update_job
 
 logger = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "scriptwriting.txt"
 
-# Minimum acceptable word count; warn if script falls short
 MIN_WORDS = 1500
+# ~2000-word Dutch script; 6000 tokens gives comfortable headroom
+_SCRIPT_MAX_TOKENS = 6000
 
 
 # ---------------------------------------------------------------------------
-# Agent factory
+# Minimal agent shim  (replaces swarms.Agent)
 # ---------------------------------------------------------------------------
 
-def build_scriptwriting_agent() -> Agent:
-    """Build and return the Scriptwriting Swarms Agent (claude-3-5-sonnet)."""
-    llm = get_llm("claude-3-5-sonnet")
+class _Agent:
+    """
+    Lightweight agent that wraps an LLMClient + system prompt.
+    Exposes .run(task) → str, matching the swarms Agent interface.
+    """
+
+    def __init__(self, llm: LLMClient, system_prompt: str):
+        self._llm = llm
+        self._system_prompt = system_prompt
+
+    def run(self, task: str) -> str:
+        return self._llm.run(task=task, system=self._system_prompt)
+
+
+# ---------------------------------------------------------------------------
+# Agent factory  (signature unchanged; return type changed from swarms.Agent)
+# ---------------------------------------------------------------------------
+
+def build_scriptwriting_agent() -> _Agent:
+    """Build and return the Scriptwriting Agent (claude-3-5-sonnet)."""
+    # Larger token budget for ~2000-word scripts; passed through to the SDK
+    llm = get_llm("claude-3-5-sonnet", max_tokens=_SCRIPT_MAX_TOKENS)
     system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
-
-    return Agent(
-        agent_name="ScriptwritingAgent",
-        agent_description=(
-            "Schrijft uitgebreide, transformatieve YouTube-scripts in het Nederlands "
-            "voor de vastgoedinvesteerder doelgroep (25-45 jaar)."
-        ),
-        llm=llm,
-        system_prompt=system_prompt,
-        max_loops=1,
-        # Allow more tokens for a ~2000-word script
-        max_tokens=6000,
-        verbose=True,
-        output_type="str",
-    )
+    return _Agent(llm=llm, system_prompt=system_prompt)
 
 
 # ---------------------------------------------------------------------------
-# Main callable
+# Main callable  (signature and behaviour unchanged)
 # ---------------------------------------------------------------------------
 
 def run_scriptwriting(job_id: str | None = None) -> VideoJob | None:
@@ -122,7 +128,7 @@ def run_scriptwriting(job_id: str | None = None) -> VideoJob | None:
 
 
 # ---------------------------------------------------------------------------
-# Core generation
+# Core generation  (unchanged except agent is now _Agent instead of swarms.Agent)
 # ---------------------------------------------------------------------------
 
 def _generate_script(job: VideoJob) -> str:
@@ -142,7 +148,7 @@ def _generate_script(job: VideoJob) -> str:
     )
 
     task = (
-        f"VIDEO CONCEPT\n"
+        "VIDEO CONCEPT\n"
         f"Titel: {job.title_concept}\n"
         f"Outline:\n{outline_str}\n"
         f"Doelzoekwoorden: {json.dumps(job.keyword_targets, ensure_ascii=False)}\n\n"
