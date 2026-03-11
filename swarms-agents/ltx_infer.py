@@ -38,9 +38,9 @@ NEGATIVE_PROMPT = "worst quality, inconsistent motion, blurry, jittery, distorte
 # 97 frames @ 24 fps ≈ 4 seconds. LTX-Video requires num_frames = 8k + 1.
 NUM_FRAMES = 97
 WIDTH = 768
-HEIGHT = 432
+HEIGHT = 448   # must be divisible by 32 (768/32=24 ✓, 448/32=14 ✓)
 FPS = 24
-INFERENCE_STEPS = 30
+INFERENCE_STEPS = 20
 MAX_RETRIES = 2
 
 
