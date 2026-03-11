@@ -84,7 +84,7 @@ def generate_clip(pipe: LTXPipeline, prompt: str, output_path: str, seed: int) -
     export_to_video(frames, output_path, fps=FPS)
 
     size_kb = Path(output_path).stat().st_size // 1024
-    print(f"[ltx_infer] ✓ Clip opgeslagen → {output_path} ({size_kb} KB)", flush=True)
+    print(f"[ltx_infer] OK Clip opgeslagen: {output_path} ({size_kb} KB)", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ def main() -> None:
         print(f"[ltx_infer] Mislukte scenes: {failed}", flush=True)
         sys.exit(1)
 
-    print(f"[ltx_infer] ✓ Alle {len(scenes)} clips gegenereerd", flush=True)
+    print(f"[ltx_infer] OK Alle {len(scenes)} clips gegenereerd", flush=True)
 
 
 if __name__ == "__main__":
