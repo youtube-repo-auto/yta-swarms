@@ -29,7 +29,9 @@ from diffusers.utils import export_to_video
 # Configuration
 # ---------------------------------------------------------------------------
 
-MODEL_PATH = r"C:\Users\MikeDonker\Projects\Wan2.2\models\LTX-Video\ltx-video-2b-v0.9.1.safetensors"
+# Full diffusers pipeline on HuggingFace (text encoder + transformer + VAE).
+# Downloaded and cached on first run; local after that.
+HF_PIPELINE = "Lightricks/LTX-Video-0.9.1"
 
 NEGATIVE_PROMPT = "worst quality, inconsistent motion, blurry, jittery, distorted"
 
@@ -47,14 +49,16 @@ MAX_RETRIES = 2
 # ---------------------------------------------------------------------------
 
 def load_pipeline() -> LTXPipeline:
-    print(f"[ltx_infer] Loading model: {MODEL_PATH}", flush=True)
-    pipe = LTXPipeline.from_single_file(
-        MODEL_PATH,
+    # from_pretrained downloads all components (T5 text encoder, transformer,
+    # VAE, tokenizer, scheduler) on first run and caches them in ~/.cache/huggingface.
+    print(f"[ltx_infer] Pipeline laden van {HF_PIPELINE} …", flush=True)
+    pipe = LTXPipeline.from_pretrained(
+        HF_PIPELINE,
         torch_dtype=torch.bfloat16,
     )
     device = "cuda" if torch.cuda.is_available() else "cpu"
     pipe.to(device)
-    print(f"[ltx_infer] Model ready on {device}", flush=True)
+    print(f"[ltx_infer] Model klaar op {device}", flush=True)
     return pipe
 
 
