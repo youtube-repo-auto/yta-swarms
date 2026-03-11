@@ -3,11 +3,11 @@ Research Agent
 ==============
 - Pakt de oudste job met status=IDEA
 - Doet web research via DuckDuckGo (gratis) of SerpAPI (als key beschikbaar)
-- Laat gpt-4-turbo de resultaten analyseren tot gestructureerde research_data
+- Laat claude-3-5-sonnet de resultaten analyseren tot gestructureerde research_data
 - Update de job: research_data (JSONB) + status → RESEARCHED
-Model: gpt-4-turbo
+Model: claude-3-5-sonnet
 
-No swarms dependency — uses the OpenAI SDK directly via LLMClient.
+No swarms dependency — uses the Anthropic SDK directly via LLMClient.
 """
 
 import json
@@ -15,6 +15,8 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
+
+from ddgs import DDGS
 
 import requests
 
@@ -53,8 +55,8 @@ class _Agent:
 # ---------------------------------------------------------------------------
 
 def build_research_agent() -> _Agent:
-    """Build and return the Research Agent (gpt-4-turbo)."""
-    llm = get_llm("gpt-4-turbo")
+    """Build and return the Research Agent (claude-3-5-sonnet)."""
+    llm = get_llm("claude-3-5-sonnet")
     system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
     return _Agent(llm=llm, system_prompt=system_prompt)
 
@@ -149,14 +151,14 @@ def _build_queries(job: VideoJob) -> list[str]:
     return queries[:NUM_QUERIES]
 
 
-@with_retry(max_attempts=3, base_delay=2.0, exceptions=(requests.RequestException,))
+@with_retry(max_attempts=3, base_delay=2.0, exceptions=(requests.RequestException,Exception))
 def _search(query: str) -> list[dict[str, Any]]:
     """
     Fetch search results via SerpAPI (if key set) or DuckDuckGo HTML fallback.
     Returns list of {title, url, snippet}.
     """
-    serp_key = os.getenv("SERPAPI_KEY")
-    if serp_key:
+    serp_key = (os.getenv("SERPAPI_KEY") or "").strip()
+    if serp_key and not serp_key.startswith("#"):
         return _serpapi_search(query, serp_key)
     return _duckduckgo_search(query)
 
@@ -191,25 +193,25 @@ def _serpapi_search(query: str, api_key: str) -> list[dict[str, Any]]:
 
 def _duckduckgo_search(query: str) -> list[dict[str, Any]]:
     """
-    Lightweight DuckDuckGo search fallback.
-    Note: DDG has rate limits; use SerpAPI for production.
+    Lightweight DuckDuckGo search fallback via ddgs.
+    Note: DDG heeft rate limits; voor zware productie SerpAPI gebruiken.
     """
+    results: list[dict[str, Any]] = []
+
     try:
-        from duckduckgo_search import DDGS
-    except ImportError:
-        logger.warning("duckduckgo_search not installed; skipping DDG search.")
+        with DDGS() as ddgs:
+            for r in ddgs.text(query, region="nl-nl", max_results=RESULTS_PER_QUERY):
+                results.append(
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("href", ""),
+                        "snippet": r.get("body", ""),
+                    }
+                )
+    except Exception as e:
+        logger.warning(f"DDGS search failed: {e}")
         return []
 
-    results = []
-    with DDGS() as ddgs:
-        for r in ddgs.text(query, region="nl-nl", max_results=RESULTS_PER_QUERY):
-            results.append(
-                {
-                    "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", ""),
-                }
-            )
     return results
 
 
@@ -235,14 +237,23 @@ def _analyse_with_agent(job: VideoJob, search_results: list[dict[str, Any]]) -> 
 def _parse_research_json(raw: str) -> dict:
     """Extract and validate the JSON object from agent output."""
     cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.splitlines()
-        cleaned = "\n".join(
-            line for line in lines if not line.startswith("```")
-        ).strip()
 
+    # Verwijder markdown code blocks
+    if "```" in cleaned:
+        import re
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
+        if match:
+            cleaned = match.group(1)
+        else:
+            lines = cleaned.splitlines()
+            cleaned = "\n".join(
+                line for line in lines if not line.strip().startswith("```")
+            ).strip()
+
+    # raw_decode stopt na het eerste geldige JSON object — negeert trailing tekst
     try:
-        data = json.loads(cleaned)
+        decoder = json.JSONDecoder()
+        data, _ = decoder.raw_decode(cleaned)
     except json.JSONDecodeError as exc:
         raise ValueError(
             f"Research Agent output is not valid JSON:\n{raw[:500]}"
@@ -257,3 +268,4 @@ def _parse_research_json(raw: str) -> dict:
         logger.warning("Research JSON missing expected keys: %s", missing)
 
     return data
+

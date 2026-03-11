@@ -3,7 +3,7 @@ Content Planning Agent
 ======================
 Input : niche (str), trending_topics (dict), top_performers (list)
 Output: 3 video-ideeën als JSON → geschreven naar video_jobs (status=IDEA)
-Model : claude-3-5-sonnet  (→ claude-sonnet-4-6 via llm_factory)
+Model : gemini-1.5-flash  (→ gemini-1.5-flash via llm_factory)
 
 No swarms dependency — uses the Anthropic SDK directly via LLMClient.
 """

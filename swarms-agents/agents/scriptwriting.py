@@ -4,7 +4,7 @@ Scriptwriting Agent
 - Pakt de oudste job met status=RESEARCHED
 - Schrijft een ~2000-woorden Nederlandstalig script (educatief, transformatief)
 - Update de job: script (text) + status → SCRIPTED
-Model: claude-3-5-sonnet  (→ claude-sonnet-4-6 via llm_factory)
+Model: claude-3-5-sonnet  (→ claude-sonnet-4-5 via llm_factory)
 
 No swarms dependency — uses the Anthropic SDK directly via LLMClient.
 """

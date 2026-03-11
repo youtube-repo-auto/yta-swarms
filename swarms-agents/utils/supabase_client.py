@@ -7,13 +7,14 @@ Pipeline statuses:
 """
 
 import os
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -57,7 +58,6 @@ PIPELINE_STATUSES = [
     "UPLOADED",
 ]
 
-
 class VideoJob(BaseModel):
     """Mirrors the video_jobs table schema."""
 
@@ -82,6 +82,19 @@ class VideoJob(BaseModel):
     created_at: str | None = None
     updated_at: str | None = None
 
+    @field_validator("keyword_targets", "seo_tags", mode="before")
+    @classmethod
+    def parse_json_list(cls, v):
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+    @field_validator("research_data", mode="before")
+    @classmethod
+    def parse_json_dict(cls, v):
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
 
 # ---------------------------------------------------------------------------
 # Helper functions

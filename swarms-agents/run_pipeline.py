@@ -29,6 +29,8 @@ import os
 import sys
 from pathlib import Path
 
+from agents.voice_generation import generate_voice_for_job
+
 from dotenv import load_dotenv
 
 # Ensure the package root is on sys.path regardless of invocation directory
@@ -58,32 +60,32 @@ def step_content_planning() -> list[str]:
     """
     from agents.content_planning import run_content_planning
 
-    niche = os.getenv("CHANNEL_NICHE", "Real Estate NL")
+    niche = os.getenv("CHANNEL_NICHE", "Personal Finance & Wealth Building")
 
     # In production, fetch these from a YouTube Analytics API call or a
     # dedicated TrendingAgent. Here we use sensible defaults for a dry-run.
     trending_topics: dict = {
-        "Huizenprijzen 2024 Nederland": {"search_volume": 9500, "trend": "stijgend"},
-        "Huurinkomsten belasting": {"search_volume": 6200, "trend": "stabiel"},
-        "Investeren in vastgoed beginnen": {"search_volume": 8100, "trend": "stijgend"},
-        "Hypotheek rente verwachting": {"search_volume": 12000, "trend": "stijgend"},
-        "Airbnb verhuur regels Nederland": {"search_volume": 4800, "trend": "stabiel"},
+        "How to invest with little money 2026": {"search_volume": 18000, "trend": "stijgend"},
+        "Passive income ideas from home": {"search_volume": 22000, "trend": "stijgend"},
+        "Stock market for beginners": {"search_volume": 35000, "trend": "stabiel"},
+        "Real estate investing 2026": {"search_volume": 14000, "trend": "stijgend"},
+        "How to save money fast": {"search_volume": 28000, "trend": "stabiel"},
     }
 
     top_performers: list = [
         {
-            "title": "Waarom ik stopt met verhuren (na 5 jaar)",
-            "views": 185000,
-            "likes": 4200,
-            "comments": 380,
-            "avg_watch_pct": 68,
+            "title": "I Invested $1000 Every Month for 5 Years (Results)",
+            "views": 2400000,
+            "likes": 87000,
+            "comments": 4200,
+            "avg_watch_pct": 71,
         },
         {
-            "title": "Mijn eerste vastgoedinvestering – wat ik anders zou doen",
-            "views": 142000,
-            "likes": 3800,
-            "comments": 290,
-            "avg_watch_pct": 72,
+            "title": "7 Passive Income Ideas That Actually Work in 2026",
+            "views": 1800000,
+            "likes": 64000,
+            "comments": 3100,
+            "avg_watch_pct": 68,
         },
     ]
 
@@ -122,6 +124,31 @@ def step_scriptwriting(job_id: str | None = None):
         )
     return job
 
+
+# — Voice generation ————————————————————————————————————————
+
+def run_voice_generation():
+    from utils.supabase_client import get_client
+    supabase = get_client()
+
+    result = (
+        supabase.table("video_jobs")
+        .select("id, title_concept")
+        .eq("status", "SCRIPT_APPROVED")
+        .execute()
+    )
+    jobs = result.data
+    print(f"Gevonden: {len(jobs)} SCRIPT_APPROVED job(s)")
+
+    for job in jobs:
+        print(f"\n→ {job['title_concept']}")
+        try:
+            generate_voice_for_job(job["id"])
+        except Exception as e:
+            print(f"❌ Fout: {e}")
+            supabase.table("video_jobs").update({
+                "error_message": str(e)
+            }).eq("id", job["id"]).execute()
 
 # ── Full pipeline for a single job ───────────────────────────────────────────
 
@@ -189,8 +216,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     mode.add_argument(
+        "--voice",
+        action="store_true",
+        help="Run voice generation on all SCRIPT_APPROVED jobs.",
+    )
+    mode.add_argument(
         "--step",
-        choices=["content_planning", "research", "scriptwriting"],
+        choices=["content_planning", "research", "scriptwriting", "voice"],
         help="Run a single pipeline step on the next available job.",
     )
 
@@ -217,6 +249,9 @@ def main():
         else:
             logger.warning("No ideas were generated.")
 
+    elif args.voice:
+        run_voice_generation()
+        
     elif args.step == "content_planning":
         step_content_planning()
 
@@ -226,6 +261,9 @@ def main():
     elif args.step == "scriptwriting":
         step_scriptwriting()
 
+    elif args.step == "voice":
+        run_voice_generation()
+    
     logger.info("═══════════════════════════════════════════════════════════")
     logger.info(" Done.")
     logger.info("═══════════════════════════════════════════════════════════")
