@@ -6,6 +6,8 @@ Research Agent
 - Laat gpt-4-turbo de resultaten analyseren tot gestructureerde research_data
 - Update de job: research_data (JSONB) + status → RESEARCHED
 Model: gpt-4-turbo
+
+No swarms dependency — uses the OpenAI SDK directly via LLMClient.
 """
 
 import json
@@ -15,9 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from swarms import Agent
 
-from utils.llm_factory import get_llm
+from utils.llm_factory import LLMClient, get_llm
 from utils.retry import with_retry
 from utils.supabase_client import VideoJob, get_next_job, update_job
 
@@ -25,37 +26,41 @@ logger = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "research.txt"
 
-# Number of search queries generated per job
 NUM_QUERIES = 4
-# Results fetched per query
 RESULTS_PER_QUERY = 5
 
 
 # ---------------------------------------------------------------------------
-# Agent factory
+# Minimal agent shim  (replaces swarms.Agent)
 # ---------------------------------------------------------------------------
 
-def build_research_agent() -> Agent:
-    """Build and return the Research Swarms Agent (gpt-4-turbo)."""
+class _Agent:
+    """
+    Lightweight agent that wraps an LLMClient + system prompt.
+    Exposes .run(task) → str, matching the swarms Agent interface.
+    """
+
+    def __init__(self, llm: LLMClient, system_prompt: str):
+        self._llm = llm
+        self._system_prompt = system_prompt
+
+    def run(self, task: str) -> str:
+        return self._llm.run(task=task, system=self._system_prompt)
+
+
+# ---------------------------------------------------------------------------
+# Agent factory  (signature unchanged; return type changed from swarms.Agent)
+# ---------------------------------------------------------------------------
+
+def build_research_agent() -> _Agent:
+    """Build and return the Research Agent (gpt-4-turbo)."""
     llm = get_llm("gpt-4-turbo")
     system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
-
-    return Agent(
-        agent_name="ResearchAgent",
-        agent_description=(
-            "Analyseert zoekresultaten en extraheert gestructureerde research-data "
-            "voor Nederlandse vastgoed YouTube-video's."
-        ),
-        llm=llm,
-        system_prompt=system_prompt,
-        max_loops=1,
-        verbose=True,
-        output_type="str",
-    )
+    return _Agent(llm=llm, system_prompt=system_prompt)
 
 
 # ---------------------------------------------------------------------------
-# Main callable
+# Main callable  (signature and behaviour unchanged)
 # ---------------------------------------------------------------------------
 
 def run_research(job_id: str | None = None) -> VideoJob | None:
@@ -102,7 +107,7 @@ def run_research(job_id: str | None = None) -> VideoJob | None:
 
 
 # ---------------------------------------------------------------------------
-# Search helpers
+# Search helpers  (unchanged)
 # ---------------------------------------------------------------------------
 
 def _gather_search_results(job: VideoJob) -> list[dict[str, Any]]:
@@ -115,7 +120,6 @@ def _gather_search_results(job: VideoJob) -> list[dict[str, Any]]:
         all_results.extend(results)
         logger.debug("Query '%s' → %d results", query, len(results))
 
-    # Deduplicate by URL
     seen: set[str] = set()
     unique: list[dict[str, Any]] = []
     for r in all_results:
@@ -187,8 +191,8 @@ def _serpapi_search(query: str, api_key: str) -> list[dict[str, Any]]:
 
 def _duckduckgo_search(query: str) -> list[dict[str, Any]]:
     """
-    Lightweight DuckDuckGo instant-answer API fallback.
-    Note: DDG's HTML search has rate limits; use SerpAPI for production.
+    Lightweight DuckDuckGo search fallback.
+    Note: DDG has rate limits; use SerpAPI for production.
     """
     try:
         from duckduckgo_search import DDGS
@@ -210,14 +214,13 @@ def _duckduckgo_search(query: str) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# LLM analysis
+# LLM analysis  (unchanged except agent is now _Agent instead of swarms.Agent)
 # ---------------------------------------------------------------------------
 
 def _analyse_with_agent(job: VideoJob, search_results: list[dict[str, Any]]) -> dict:
     """Run the Research Agent over the gathered search results."""
     agent = build_research_agent()
 
-    # Build full task message (system prompt holds the output format)
     task = (
         f"Titel: {job.title_concept}\n"
         f"Outline: {json.dumps(job.outline, ensure_ascii=False)}\n"
