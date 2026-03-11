@@ -104,7 +104,7 @@ def _concatenate_clips(clip_paths: list[str], tmpdir: str) -> str:
     )
 
     size_mb = Path(output_path).stat().st_size // (1024 * 1024)
-    print(f"✓ {len(clip_paths)} clips aaneengesloten → {output_path} ({size_mb} MB)")
+    print(f"OK {len(clip_paths)} clips aaneengesloten: {output_path} ({size_mb} MB)")
     return output_path
 
 
@@ -116,7 +116,7 @@ def _download_audio(audio_url: str, tmpdir: str) -> str:
     with open(audio_path, "wb") as f:
         f.write(resp.content)
     size_kb = Path(audio_path).stat().st_size // 1024
-    print(f"Audio gedownload: {size_kb} KB → {audio_path}")
+    print(f"Audio gedownload: {size_kb} KB: {audio_path}")
     return audio_path
 
 
@@ -142,7 +142,7 @@ def _mux_audio(video_path: str, audio_path: str, tmpdir: str) -> str:
     )
 
     size_mb = Path(output_path).stat().st_size // (1024 * 1024)
-    print(f"✓ Audio gemixt → {output_path} ({size_mb} MB)")
+    print(f"OK Audio gemixt: {output_path} ({size_mb} MB)")
     return output_path
 
 
@@ -246,7 +246,7 @@ def generate_video_for_job(video_job_id: str) -> str:
             "video_url": video_url,
         }).eq("id", video_job_id).execute()
 
-        print(f"✓ Job {video_job_id} → VIDEO_GENERATED")
+        print(f"OK Job {video_job_id} -> VIDEO_GENERATED")
         return video_url
 
     finally:
