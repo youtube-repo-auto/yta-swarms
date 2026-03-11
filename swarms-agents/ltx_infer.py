@@ -36,11 +36,11 @@ HF_PIPELINE = "Lightricks/LTX-Video-0.9.1"
 NEGATIVE_PROMPT = "worst quality, inconsistent motion, blurry, jittery, distorted"
 
 # 97 frames @ 24 fps ≈ 4 seconds. LTX-Video requires num_frames = 8k + 1.
-NUM_FRAMES = 97
-WIDTH = 768
-HEIGHT = 448   # must be divisible by 32 (768/32=24 ✓, 448/32=14 ✓)
+NUM_FRAMES = 49    # 49 frames @ 24fps ≈ 2s; must be 8k+1
+WIDTH = 512        # 512/32=16 ✓
+HEIGHT = 288       # 288/32=9 ✓  — exact 16:9
 FPS = 24
-INFERENCE_STEPS = 20
+INFERENCE_STEPS = 10
 MAX_RETRIES = 2
 
 
