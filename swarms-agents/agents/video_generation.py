@@ -29,7 +29,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 
 _WAN2_PYTHON = r"C:\Users\MikeDonker\Projects\Wan2.2\venv-wan\Scripts\python.exe"
-_LTX_INFER_SCRIPT = r"C:\Users\MikeDonker\Projects\Wan2.2\ltx_infer.py"
+_LTX_INFER_SCRIPT = str(Path(__file__).parent.parent / "ltx_infer.py")
 
 
 # ---------------------------------------------------------------------------
