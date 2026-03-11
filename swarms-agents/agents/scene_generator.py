@@ -32,7 +32,8 @@ def generate_scene_prompts(script: str, title: str, num_scenes: int = 8) -> list
 Script:
 {script[:4000]}
 
-Generate exactly {num_scenes} visual scenes for this video."""
+Generate exactly {num_scenes} visual scenes for this video.
+Respond with ONLY the raw JSON object. No markdown, no code blocks, no explanation."""
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
@@ -40,10 +41,20 @@ Generate exactly {num_scenes} visual scenes for this video."""
         messages=[
             {"role": "user", "content": f"{SCENE_PROMPT_SYSTEM}\n\n{user_msg}"},
         ],
-        temperature=0.7,
+        temperature=0.0,  # JSON output altijd op 0
     )
 
-    result = json.loads(response.content[0].text)
+    raw = response.content[0].text.strip()
+
+    # Strip markdown code blocks als Claude die toch stuurt
+    if raw.startswith("```"):
+        raw = raw[raw.index("\n")+1:]  # verwijder ```json regel
+        raw = raw[:raw.rfind("```")].strip()  # verwijder sluitende ```
+
+    if not raw:
+        raise ValueError(f"Lege response van Claude voor job '{title}'")
+
+    result = json.loads(raw)
     scenes = result.get("scenes", [])
     print(f"✓ {len(scenes)} scènes gegenereerd voor '{title}'")
     return scenes
