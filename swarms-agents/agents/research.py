@@ -1,10 +1,10 @@
 """
 Research Agent
 ==============
-- Pakt de oudste job met status=IDEA
-- Doet web research via DuckDuckGo (gratis) of SerpAPI (als key beschikbaar)
-- Laat claude-3-5-sonnet de resultaten analyseren tot gestructureerde research_data
-- Update de job: research_data (JSONB) + status → RESEARCHED
+- Picks the oldest job with status=IDEA
+- Does web research via DuckDuckGo (free) or SerpAPI (if key available)
+- Uses claude-3-5-sonnet to analyze results into structured research_data
+- Updates the job: research_data (JSONB) + status → RESEARCHED
 Model: claude-3-5-sonnet
 
 No swarms dependency — uses the Anthropic SDK directly via LLMClient.
@@ -135,18 +135,18 @@ def _gather_search_results(job: VideoJob) -> list[dict[str, Any]]:
 
 
 def _build_queries(job: VideoJob) -> list[str]:
-    """Generate targeted Dutch-language search queries from the job data."""
+    """Generate targeted English search queries from the job data."""
     title = job.title_concept or ""
     keywords = job.keyword_targets or []
 
     queries = [
-        f"{title} Nederland statistieken 2024",
-        f"{title} Nederlandse vastgoedmarkt analyse",
+        f"{title} statistics 2024",
+        f"{title} market analysis",
     ]
     if keywords:
-        queries.append(f"{keywords[0]} Nederland investeren tips")
+        queries.append(f"{keywords[0]} investing tips")
         if len(keywords) > 1:
-            queries.append(f"{keywords[1]} markttrend Nederland")
+            queries.append(f"{keywords[1]} market trend")
 
     return queries[:NUM_QUERIES]
 
@@ -169,8 +169,8 @@ def _serpapi_search(query: str, api_key: str) -> list[dict[str, Any]]:
         "https://serpapi.com/search",
         params={
             "q": query,
-            "hl": "nl",
-            "gl": "nl",
+            "hl": "en",
+            "gl": "us",
             "num": RESULTS_PER_QUERY,
             "api_key": api_key,
         },
@@ -194,13 +194,13 @@ def _serpapi_search(query: str, api_key: str) -> list[dict[str, Any]]:
 def _duckduckgo_search(query: str) -> list[dict[str, Any]]:
     """
     Lightweight DuckDuckGo search fallback via ddgs.
-    Note: DDG heeft rate limits; voor zware productie SerpAPI gebruiken.
+    Note: DDG has rate limits; use SerpAPI for heavy production workloads.
     """
     results: list[dict[str, Any]] = []
 
     try:
         with DDGS() as ddgs:
-            for r in ddgs.text(query, region="nl-nl", max_results=RESULTS_PER_QUERY):
+            for r in ddgs.text(query, region="en-us", max_results=RESULTS_PER_QUERY):
                 results.append(
                     {
                         "title": r.get("title", ""),
@@ -224,10 +224,10 @@ def _analyse_with_agent(job: VideoJob, search_results: list[dict[str, Any]]) -> 
     agent = build_research_agent()
 
     task = (
-        f"Titel: {job.title_concept}\n"
+        f"Title: {job.title_concept}\n"
         f"Outline: {json.dumps(job.outline, ensure_ascii=False)}\n"
-        f"Doelzoekwoorden: {json.dumps(job.keyword_targets, ensure_ascii=False)}\n\n"
-        f"Zoekresultaten:\n{json.dumps(search_results, ensure_ascii=False, indent=2)}"
+        f"Target keywords: {json.dumps(job.keyword_targets, ensure_ascii=False)}\n\n"
+        f"Search results:\n{json.dumps(search_results, ensure_ascii=False, indent=2)}"
     )
 
     raw_output: str = agent.run(task)
@@ -238,7 +238,7 @@ def _parse_research_json(raw: str) -> dict:
     """Extract and validate the JSON object from agent output."""
     cleaned = raw.strip()
 
-    # Verwijder markdown code blocks
+    # Strip markdown code blocks if present
     if "```" in cleaned:
         import re
         match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
@@ -250,7 +250,7 @@ def _parse_research_json(raw: str) -> dict:
                 line for line in lines if not line.strip().startswith("```")
             ).strip()
 
-    # raw_decode stopt na het eerste geldige JSON object — negeert trailing tekst
+    # raw_decode stops after the first valid JSON object — ignores trailing text
     try:
         decoder = json.JSONDecoder()
         data, _ = decoder.raw_decode(cleaned)

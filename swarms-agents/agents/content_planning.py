@@ -2,8 +2,8 @@
 Content Planning Agent
 ======================
 Input : niche (str), trending_topics (dict), top_performers (list)
-Output: 3 video-ideeën als JSON → geschreven naar video_jobs (status=IDEA)
-Model : gemini-1.5-flash  (→ gemini-1.5-flash via llm_factory)
+Output: 3 video ideas as JSON → written to video_jobs (status=IDEA)
+Model : claude-3-5-sonnet via llm_factory
 
 No swarms dependency — uses the Anthropic SDK directly via LLMClient.
 """
@@ -99,10 +99,10 @@ def run_content_planning(
     agent = build_content_planning_agent()
 
     task = (
-        f"Kanaal niche: {data.niche}\n\n"
-        f"Trending onderwerpen:\n{json.dumps(data.trending_topics, ensure_ascii=False, indent=2)}\n\n"
-        f"Best presterende video's:\n{json.dumps(data.top_performers, ensure_ascii=False, indent=2)}\n\n"
-        "Genereer nu precies 3 video-ideeën in het opgegeven JSON-formaat."
+        f"Channel niche: {data.niche}\n\n"
+        f"Trending topics:\n{json.dumps(data.trending_topics, ensure_ascii=False, indent=2)}\n\n"
+        f"Top performing videos:\n{json.dumps(data.top_performers, ensure_ascii=False, indent=2)}\n\n"
+        "Generate exactly 3 video ideas in the specified JSON format."
     )
 
     logger.info("Content Planning Agent: starting run for niche='%s'", niche)

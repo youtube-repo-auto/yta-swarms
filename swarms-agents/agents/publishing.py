@@ -156,11 +156,11 @@ def publish_job(video_job_id: str) -> dict:
     )
     job = result.data
     if not job:
-        raise ValueError(f"Job {video_job_id} niet gevonden")
+        raise ValueError(f"Job {video_job_id} not found")
 
     for field in ("video_url", "seo_title", "seo_description"):
         if not job.get(field):
-            raise ValueError(f"Verplicht veld '{field}' ontbreekt voor job {video_job_id}")
+            raise ValueError(f"Required field '{field}' missing for job {video_job_id}")
 
     seo_title = job["seo_title"]
     seo_description = job["seo_description"]
@@ -176,18 +176,18 @@ def publish_job(video_job_id: str) -> dict:
 
         # 3. Download video from Supabase Storage
         video_path = os.path.join(tmpdir, f"video_{uuid.uuid4().hex}.mp4")
-        print("Video downloaden van Supabase Storage…")
+        print("Downloading video from Supabase Storage...")
         _download_from_storage(
             job["video_url"], video_path, "videos", _STORAGE_VIDEO_MARKER
         )
         size_mb = Path(video_path).stat().st_size // (1024 * 1024)
-        print(f"Video gedownload: {size_mb} MB")
+        print(f"Video downloaded: {size_mb} MB")
 
         # 4. Upload video (with retry)
-        print("Video uploaden naar YouTube (privé)…")
+        print("Uploading video to YouTube (private)...")
         youtube_video_id = _upload_video(youtube, video_path, seo_title, seo_description, tags)
         youtube_url = f"https://www.youtube.com/watch?v={youtube_video_id}"
-        print(f"Geüpload: {youtube_url}")
+        print(f"Uploaded: {youtube_url}")
 
         # 5. Set thumbnail (best-effort — don't fail the whole job if it errors)
         if job.get("thumbnail_url"):
@@ -197,9 +197,9 @@ def publish_job(video_job_id: str) -> dict:
                     job["thumbnail_url"], thumb_path, "thumbnails", _STORAGE_THUMB_MARKER
                 )
                 _set_thumbnail(youtube, youtube_video_id, thumb_path)
-                print("Thumbnail ingesteld")
+                print("Thumbnail set")
             except Exception as exc:
-                logger.warning("Thumbnail instellen mislukt (niet fataal): %s", exc)
+                logger.warning("Setting thumbnail failed (non-fatal): %s", exc)
 
         # 6. Update DB — success
         supabase.table("video_jobs").update({
@@ -212,7 +212,7 @@ def publish_job(video_job_id: str) -> dict:
         return {"youtube_video_id": youtube_video_id, "youtube_url": youtube_url}
 
     except Exception as exc:
-        logger.error("Publishing mislukt voor job %s: %s", video_job_id, exc)
+        logger.error("Publishing failed for job %s: %s", video_job_id, exc)
         supabase.table("video_jobs").update({
             "status": "PUBLISH_FAILED",
             "error_message": str(exc)[:500],

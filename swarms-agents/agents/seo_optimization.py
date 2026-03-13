@@ -2,14 +2,14 @@
 """
 SEO Optimization Agent
 ======================
-1. Haal job op uit Supabase (title_concept, script[:2000], niche, keyword_targets).
-2. Gebruik Claude Haiku om SEO-metadata te genereren:
-   - seo_title:       max 70 tekens, pakkend, keyword-rijk
-   - seo_description: max 5000 tekens, Nederlandstalig, CTA onderaan
-   - seo_tags:        max 500 tekens totaal, kommagescheiden
+1. Fetch job from Supabase (title_concept, script[:2000], niche, keyword_targets).
+2. Use Claude Haiku to generate SEO metadata:
+   - seo_title:       max 70 characters, compelling, keyword-rich
+   - seo_description: max 5000 characters, English, CTA at the end
+   - seo_tags:        max 500 characters total, comma-separated
 3. Update video_jobs: seo_title, seo_description, seo_tags, status → SEO_OPTIMIZED.
 
-Exporteert: generate_seo_for_job(video_job_id: str) -> dict
+Exports: generate_seo_for_job(video_job_id: str) -> dict
 """
 import json
 import logging
@@ -28,15 +28,16 @@ _anthropic = Anthropic()
 # Prompt
 # ---------------------------------------------------------------------------
 
-_SYSTEM = """Je bent een YouTube SEO-specialist voor Nederlandstalige financiële content.
-Op basis van de videotitel, niche, script en doelzoekwoorden genereer je optimale metadata.
+_SYSTEM = """You are a YouTube SEO specialist for English-language finance and investment content.
+Based on the video title, niche, script, and target keywords, generate optimal metadata.
+All metadata (title, description, tags) must be in English.
 
-Regels:
-- seo_title:       max 70 tekens, pakkend, bevat het hoofdzoekwoord
-- seo_description: max 5000 tekens, Nederlandstalig, beschrijvend, eindig met een duidelijke CTA
-- seo_tags:        kommagescheiden, max 500 tekens totaal, mix van breed en specifiek
+Rules:
+- seo_title:       max 70 characters, compelling, contains the primary keyword
+- seo_description: max 5000 characters, English, descriptive, end with a clear CTA
+- seo_tags:        comma-separated, max 500 characters total, mix of broad and specific
 
-Geef ALLEEN een geldig JSON-object terug in dit exacte formaat:
+Return ONLY a valid JSON object in this exact format:
 {
   "seo_title": "...",
   "seo_description": "...",
@@ -50,14 +51,14 @@ Geef ALLEEN een geldig JSON-object terug in dit exacte formaat:
 
 def _generate_seo(title: str, niche: str, script_excerpt: str, keywords: list[str]) -> dict:
     """Call Claude Haiku to generate SEO metadata. Returns parsed dict."""
-    kw_str = ", ".join(keywords) if keywords else "geen opgegeven"
+    kw_str = ", ".join(keywords) if keywords else "none provided"
     user_msg = (
-        f"Videotitel: {title}\n"
-        f"Niche: {niche or 'algemeen'}\n"
-        f"Doelzoekwoorden: {kw_str}\n\n"
-        f"Script (eerste 2000 tekens):\n{script_excerpt}\n\n"
-        "Genereer de SEO-metadata.\n"
-        "Stuur ALLEEN het ruwe JSON-object terug. Geen markdown, geen uitleg."
+        f"Video title: {title}\n"
+        f"Niche: {niche or 'general'}\n"
+        f"Target keywords: {kw_str}\n\n"
+        f"Script (first 2000 characters):\n{script_excerpt}\n\n"
+        "Generate the SEO metadata.\n"
+        "Return ONLY the raw JSON object. No markdown, no explanation."
     )
 
     def _call() -> str:
@@ -71,23 +72,23 @@ def _generate_seo(title: str, niche: str, script_excerpt: str, keywords: list[st
 
     raw = retry_call(_call, max_attempts=2, base_delay=2.0, exceptions=(Exception,))
 
-    # Strip markdown code blocks indien aanwezig
+    # Strip markdown code blocks if present
     if raw.startswith("```"):
         raw = raw[raw.index("\n") + 1:]
         raw = raw[:raw.rfind("```")].strip()
 
     if not raw:
-        raise ValueError(f"Lege response van Claude Haiku voor '{title}'")
+        raise ValueError(f"Empty response from Claude Haiku for '{title}'")
 
     return json.loads(raw)
 
 
 def _validate(data: dict, title: str) -> dict:
-    """Trim velden die te lang zijn en valideer aanwezigheid."""
+    """Trim fields that are too long and validate presence."""
     required = {"seo_title", "seo_description", "seo_tags"}
     missing = required - data.keys()
     if missing:
-        raise ValueError(f"SEO JSON mist velden {missing} voor '{title}'")
+        raise ValueError(f"SEO JSON missing fields {missing} for '{title}'")
 
     if len(data["seo_title"]) > 70:
         data["seo_title"] = data["seo_title"][:70].rstrip()
@@ -115,21 +116,21 @@ def _validate(data: dict, title: str) -> dict:
 
 def generate_seo_for_job(video_job_id: str) -> dict:
     """
-    Genereer SEO-metadata voor de gegeven job en sla op in Supabase.
+    Generate SEO metadata for the given job and save to Supabase.
 
     Args:
-        video_job_id: UUID van de video_jobs rij.
+        video_job_id: UUID of the video_jobs row.
 
     Returns:
-        Dict met seo_title, seo_description en seo_tags.
+        Dict with seo_title, seo_description, and seo_tags.
 
     Raises:
-        ValueError: Als verplichte velden ontbreken of de response ongeldig is.
+        ValueError: If required fields are missing or the response is invalid.
     """
     from utils.supabase_client import get_client
     supabase = get_client()
 
-    # 1. Haal job op
+    # 1. Fetch job
     result = (
         supabase.table("video_jobs")
         .select("title_concept, script, niche, keyword_targets")
@@ -139,7 +140,7 @@ def generate_seo_for_job(video_job_id: str) -> dict:
     )
     job = result.data
     if not job:
-        raise ValueError(f"Job {video_job_id} niet gevonden")
+        raise ValueError(f"Job {video_job_id} not found")
 
     title = job.get("title_concept") or ""
     niche = job.get("niche") or ""
@@ -147,16 +148,17 @@ def generate_seo_for_job(video_job_id: str) -> dict:
     raw_kw = job.get("keyword_targets") or []
     keywords: list[str] = json.loads(raw_kw) if isinstance(raw_kw, str) else raw_kw
 
-    print(f"SEO optimalisatie: '{title}'")
+    print(f"SEO optimization: '{title}'")
 
-    # 2. Genereer en valideer (retry zit in _generate_seo via retry_call)
+    # 2. Generate and validate (retry is in _generate_seo via retry_call)
     raw_data = _generate_seo(title, niche, script_excerpt, keywords)
     seo_data = _validate(raw_data, title)
 
-    print(f"Titel ({len(seo_data['seo_title'])} tekens): {seo_data['seo_title']}")
-    print(f"Tags ({len(seo_data['seo_tags'])} tekens): {seo_data['seo_tags'][:80]}...")
+    print(f"Title ({len(seo_data['seo_title'])} chars): {seo_data['seo_title']}")
+    print(f"Tags ({len(seo_data['seo_tags'])} chars): {seo_data['seo_tags'][:80]}...")
 
     # 3. Update DB
+
     supabase.table("video_jobs").update({
         "seo_title": seo_data["seo_title"],
         "seo_description": seo_data["seo_description"],

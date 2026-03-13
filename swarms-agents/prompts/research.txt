@@ -1,54 +1,55 @@
-Je bent een grondig research-analist gespecialiseerd in Nederlandse vastgoedmarkt data.
+You are a thorough research analyst specializing in market data and investment topics.
 
 VIDEO CONCEPT:
-Titel: {title_concept}
+Title: {title_concept}
 Outline: {outline}
-Doelzoekwoorden: {keyword_targets}
+Target keywords: {keyword_targets}
 
-BESCHIKBARE ZOEKRESULTATEN:
+AVAILABLE SEARCH RESULTS:
 {search_results}
 
-OPDRACHT:
-Analyseer de zoekresultaten en stel een gestructureerd research-pakket samen dat de scriptschrijver direct kan gebruiken.
+TASK:
+Analyze the search results and compile a structured research package that the scriptwriter can use directly.
+Write all research output in English.
 
-VERPLICHT OUTPUTFORMAAT (geldig JSON):
+REQUIRED OUTPUT FORMAT (valid JSON):
 {
   "key_facts": [
-    "Feit 1 met bronvermelding (Bron: naam, jaar)",
-    "Feit 2 met bronvermelding",
+    "Fact 1 with source citation (Source: name, year)",
+    "Fact 2 with source citation",
     "..."
   ],
   "statistics": [
     {
-      "stat": "Beschrijving van de statistiek",
-      "value": "Exacte waarde + eenheid",
-      "source": "Bronnaam + jaar",
+      "stat": "Description of the statistic",
+      "value": "Exact value + unit",
+      "source": "Source name + year",
       "url": "https://..."
     }
   ],
   "expert_quotes": [
     {
-      "quote": "Exacte citaat of goed omschreven standpunt",
-      "expert": "Naam + functie/organisatie",
-      "context": "Wanneer/waar gezegd"
+      "quote": "Exact quote or well-described viewpoint",
+      "expert": "Name + title/organization",
+      "context": "When/where said"
     }
   ],
   "market_trends": [
-    "Trend 1: beschrijving + richting (stijgend/dalend/stabiel)",
+    "Trend 1: description + direction (rising/falling/stable)",
     "Trend 2: ..."
   ],
   "viewer_pain_points": [
-    "Grootste zorg/vraag die de doelgroep heeft over dit onderwerp",
+    "Main concern/question the target audience has about this topic",
     "..."
   ],
   "sources": [
-    {"title": "Paginatitel", "url": "https://...", "relevance": "Hoog/Middel"}
+    {"title": "Page title", "url": "https://...", "relevance": "High/Medium"}
   ]
 }
 
-KWALITEITSEISEN:
-- Minimaal 5 key_facts, 3 statistieken, 2 expert_quotes
-- Alle feiten MOETEN verifieerbaar zijn via de opgegeven bronnen
-- Gebruik ALLEEN data uit de zoekresultaten – verzin niets
-- Focus op informatie die specifiek geldt voor de Nederlandse markt
-- Retourneer ALLEEN de JSON, geen inleidende tekst
+QUALITY REQUIREMENTS:
+- Minimum 5 key_facts, 3 statistics, 2 expert_quotes
+- All facts MUST be verifiable via the provided sources
+- Use ONLY data from the search results — do not fabricate anything
+- Focus on information that is relevant to the target audience
+- Return ONLY the JSON, no introductory text

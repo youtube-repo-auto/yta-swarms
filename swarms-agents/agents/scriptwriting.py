@@ -1,9 +1,9 @@
 """
 Scriptwriting Agent
 ===================
-- Pakt de oudste job met status=RESEARCHED
-- Schrijft een ~2000-woorden Nederlandstalig script (educatief, transformatief)
-- Update de job: script (text) + status → SCRIPTED
+- Picks the oldest job with status=RESEARCHED
+- Writes a ~2000-word English script (educational, transformative)
+- Updates the job: script (text) + status → SCRIPTED
 Model: claude-3-5-sonnet  (→ claude-sonnet-4-5 via llm_factory)
 
 No swarms dependency — uses the Anthropic SDK directly via LLMClient.
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "scriptwriting.txt"
 
 MIN_WORDS = 1500
-# ~2000-word Dutch script; 6000 tokens gives comfortable headroom
+# ~2000-word English script; 6000 tokens gives comfortable headroom
 _SCRIPT_MAX_TOKENS = 6000
 
 
@@ -138,23 +138,24 @@ def _generate_script(job: VideoJob) -> str:
     research_str = (
         json.dumps(job.research_data, ensure_ascii=False, indent=2)
         if job.research_data
-        else "Geen research data beschikbaar."
+        else "No research data available."
     )
 
     outline_str = (
         json.dumps(job.outline, ensure_ascii=False, indent=2)
         if job.outline
-        else "Geen outline beschikbaar."
+        else "No outline available."
     )
 
     task = (
-        "VIDEO CONCEPT\n"
-        f"Titel: {job.title_concept}\n"
+        "VIDEO CONTEXT\n"
+        f"Title: {job.title_concept}\n"
         f"Outline:\n{outline_str}\n"
-        f"Doelzoekwoorden: {json.dumps(job.keyword_targets, ensure_ascii=False)}\n\n"
+        f"Target keywords: {json.dumps(job.keyword_targets, ensure_ascii=False)}\n\n"
         f"RESEARCH DATA:\n{research_str}\n\n"
-        "Schrijf nu het volledige video-script volgens de instructies in het systeem-prompt. "
-        "Het script moet 1800-2200 woorden bevatten en volledig klaar zijn om uitgesproken te worden."
+        "Write the full YouTube video script in English, following the system prompt instructions. "
+        "The script must be 1,900–2,100 words and ready to be spoken by a narrator. "
+        "Output plain text only — no markdown, no labels, no timestamps, no stage directions."
     )
 
     raw_output: str = agent.run(task)

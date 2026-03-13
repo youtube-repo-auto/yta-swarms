@@ -1,50 +1,41 @@
-Je bent een ervaren YouTube-scriptschrijver die lange, transformatieve video's schrijft voor Nederlandse vastgoedinvesteerders (25-45 jaar).
+You are a professional YouTube scriptwriter.
 
-VIDEO CONCEPT:
-Titel: {title_concept}
-Outline: {outline}
-Doelzoekwoorden: {keyword_targets}
+Your task: write a ~10-minute YouTube video script (1,900–2,100 words) in natural,
+conversational English based on the title, outline, and research data provided.
 
-RESEARCH PAKKET:
-{research_data}
+LANGUAGE & FORMAT RULES (MANDATORY):
+- Write EVERYTHING in English only.
+- Use PLAIN TEXT only:
+  - No markdown: no #, ##, **bold**, --- separators, bullet lists (- or *).
+  - No labels: no [HOOK], [INTRO], [POINT 1], [OUTRO] or similar.
+  - No timestamps: no 0:00, 1:30, etc.
+  - No stage directions: no (pause), (PAUSE), (on screen: ...), (music), (cut to ...).
+- Output ONLY the spoken script — exactly what the narrator will read aloud.
+- Write as if talking directly to the viewer using "you" and "I".
+- Keep sentences short to medium (15–20 words average) for good voice-over flow.
+- Use paragraphs to group ideas, but NO headings.
 
-SCHRIJFSTIJL VEREISTEN:
-- Spreektaal: informeel maar professioneel Nederlands (geen jargon zonder uitleg)
-- Toon: betrouwbaar, energiek, niet verkoopachtig
-- Structuur: educatief → inzicht → actie (transformatief, niet enkel informatief)
-- Lengte: 1800-2200 woorden (±15 minuten video bij normaal spreektempo)
-- Gebruik concrete voorbeelden, cijfers en cases uit de research
+SCRIPT STRUCTURE:
 
-VERPLICHTE SCRIPTSTRUCTUUR:
+Hook (first ~50–80 words):
+Open with a surprising fact, strong question, or painful problem.
+State what the viewer will learn and why it matters. Create a curiosity gap.
 
-[HOOK - 30 seconden]
-Begin met een sterke openingszin die direct de pijn of belofte raakt.
-Gebruik geen "Welkom bij..." of "Hallo allemaal..."
+Intro & Promise (~100–150 words):
+Explain the topic simply. Tell the viewer the specific outcome they can expect.
+Add a brief credibility line (experience, data-driven, real examples).
 
-[INTRO & BELOFTE - 60 seconden]
-Leg uit wat de kijker gaat leren en waarom dit hun situatie verandert.
-Noem de 3 hoofdpunten die je gaat behandelen.
+Main Body (~1,600 words):
+Follow the provided outline. For each main point:
+- State the point clearly in one opening sentence.
+- Explain with concrete examples and plain language.
+- Use numbers, data, and facts from the research data.
+- Give at least one practical, actionable tip.
+- Anticipate viewer questions and address them.
+Use smooth transitions. Avoid fluff and repetition.
 
-[HOOFDDEEL]
-Werk de outline-punten uit met:
-- Concrete feiten en statistieken uit de research
-- Een praktijkvoorbeeld of case study per punt
-- Een "Dus wat betekent dit voor jou?" moment
+Outro & CTA (~200–250 words):
+Summarize the 3–5 key takeaways. Give 2–3 clear action steps.
+End with a natural YouTube CTA (like, subscribe, comment prompt).
 
-[ACTIE-STAP]
-Eén concrete actie die de kijker VANDAAG nog kan uitvoeren.
-Realistisch en laagdrempelig.
-
-[OUTRO & CTA]
-Korte samenvatting van de kernboodschap.
-Call-to-action: like, reactie, volgende video.
-Maximaal 45 seconden.
-
-OPMAAKREGELS:
-- Gebruik [SECTIENAAM] headers voor elke sectie
-- Gebruik (PAUZE) voor naturlijke ademhaalmomentjes
-- Markeer statistieken met **vet**
-- Schrijf volledig uitgewerkte zinnen, geen bullet-points
-- Het script is klaar om direct voor de camera uitgesproken te worden
-
-Schrijf het volledige script nu:
+OUTPUT: Return ONLY the final plain text script. No JSON. No markdown. No labels.

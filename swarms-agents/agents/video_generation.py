@@ -50,7 +50,7 @@ _FALLBACK_QUERY = "business finance"
 # ---------------------------------------------------------------------------
 
 def _download_audio(audio_url: str, tmpdir: str) -> str:
-    """Download audio naar tijdelijk bestand via Supabase SDK of HTTP GET.
+    """Download audio to a temp file via Supabase SDK or HTTP GET.
 
     Supabase Storage public URLs return HTTP 400 when fetched directly.
     Detect the storage URL pattern and use the SDK instead.
@@ -71,12 +71,12 @@ def _download_audio(audio_url: str, tmpdir: str) -> str:
             f.write(resp.content)
 
     size_kb = Path(audio_path).stat().st_size // 1024
-    logger.info("Audio gedownload: %d KB", size_kb)
+    logger.info("Audio downloaded: %d KB", size_kb)
     return audio_path
 
 
 def _concatenate_clips(clip_paths: list[str], tmpdir: str) -> str:
-    """Plak alle clips aaneen via FFmpeg concat demuxer (geen hercodering)."""
+    """Concatenate all clips via FFmpeg concat demuxer (no re-encode)."""
     concat_list_path = os.path.join(tmpdir, "concat.txt")
     with open(concat_list_path, "w", encoding="utf-8") as f:
         for p in clip_paths:
@@ -97,15 +97,15 @@ def _concatenate_clips(clip_paths: list[str], tmpdir: str) -> str:
     )
 
     size_mb = Path(output_path).stat().st_size // (1024 * 1024)
-    logger.info("%d clips aaneengesloten: %s (%d MB)", len(clip_paths), output_path, size_mb)
+    logger.info("%d clips concatenated: %s (%d MB)", len(clip_paths), output_path, size_mb)
     return output_path
 
 
 def _mux_audio(video_path: str, audio_path: str, tmpdir: str) -> str:
     """
-    Combineer video en audio met FFmpeg.
-    Audio-lengte bepaalt de eindlengte (-shortest).
-    Audio wordt gecodeerd naar AAC 192 kbps.
+    Combine video and audio with FFmpeg.
+    Audio length determines final length (-shortest).
+    Audio is encoded to AAC 192 kbps.
     """
     output_path = os.path.join(tmpdir, f"final_{uuid.uuid4().hex}.mp4")
     subprocess.run(
@@ -125,12 +125,12 @@ def _mux_audio(video_path: str, audio_path: str, tmpdir: str) -> str:
     )
 
     size_mb = Path(output_path).stat().st_size // (1024 * 1024)
-    logger.info("Audio gemixt: %s (%d MB)", output_path, size_mb)
+    logger.info("Audio muxed: %s (%d MB)", output_path, size_mb)
     return output_path
 
 
 def _upload_video(local_path: str, storage_path: str) -> str:
-    """Upload MP4 naar Supabase Storage bucket 'videos', geeft public URL terug."""
+    """Upload MP4 to Supabase Storage bucket 'videos', returns public URL."""
     from utils.supabase_client import get_client
     supabase = get_client()
 
@@ -157,8 +157,8 @@ def _upload_video(local_path: str, storage_path: str) -> str:
 
 def _generate_clips_ltx(scenes: list[dict], tmpdir: str) -> list[str]:
     """
-    Roep ltx_infer.py (Wan2.2 venv) aan voor alle scenes in één subprocess.
-    Het model wordt één keer geladen; per clip max 2 pogingen (in ltx_infer.py).
+    Call ltx_infer.py (Wan2.2 venv) for all scenes in one subprocess.
+    The model is loaded once; max 2 attempts per clip (in ltx_infer.py).
     """
     clip_paths = [
         os.path.join(tmpdir, f"clip_{s['index']:03d}.mp4")
@@ -189,13 +189,13 @@ def _generate_clips_ltx(scenes: list[dict], tmpdir: str) -> list[str]:
 
     if result.returncode != 0:
         raise RuntimeError(
-            f"ltx_infer.py sloot af met exitcode {result.returncode}. "
-            "Controleer bovenstaande output voor details."
+            f"ltx_infer.py exited with code {result.returncode}. "
+            "Check the output above for details."
         )
 
     missing = [p for p in clip_paths if not Path(p).exists()]
     if missing:
-        raise RuntimeError(f"Verwachte clips ontbreken na generatie: {missing}")
+        raise RuntimeError(f"Expected clips missing after generation: {missing}")
 
     return clip_paths
 
@@ -220,11 +220,41 @@ def _audio_duration(audio_path: str) -> float:
     return float(result.stdout.strip())
 
 
+_BANNED_QUERY_WORDS = {
+    "cinematic", "dramatic", "elegant", "abstract", "aerial",
+    "beautiful", "stunning", "vivid", "sleek", "dynamic",
+}
+
+
+def _normalize_query(text: str) -> str:
+    """Lowercase, strip punctuation, remove banned words, collapse whitespace."""
+    import re
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", " ", text)           # remove punctuation
+    words = text.split()
+    words = [w for w in words if w not in _BANNED_QUERY_WORDS and w.isalpha()]
+    return " ".join(words[:5])                      # max 5 words
+
+
 def _scene_to_query(scene: dict) -> str:
-    """Extract a short Pexels search query (max 4 words) from a scene dict."""
+    """Return the best Pexels search query for a scene.
+
+    Priority:
+      1. scene['search_query']  — generated with strict noun-only rules
+      2. scene['pexels_query']  — legacy field
+      3. derive from image_prompt / motion_prompt by stripping banned words
+    """
+    for key in ("search_query", "pexels_query"):
+        raw = scene.get(key, "").strip()
+        if raw:
+            normalized = _normalize_query(raw)
+            if normalized:
+                return normalized
+
+    # Fallback: derive from visual prompt
     text = scene.get("image_prompt") or scene.get("motion_prompt") or ""
-    words = [w for w in text.split() if w.isalpha()][:4]
-    return " ".join(words) if words else _FALLBACK_QUERY
+    derived = _normalize_query(text)
+    return derived if derived else _FALLBACK_QUERY
 
 
 def _pick_video_file(video_files: list[dict]) -> dict | None:
@@ -265,11 +295,11 @@ def _fetch_pexels_video(query: str, tmpdir: str, index: int) -> str:
 
     video_file = _search(query)
     if not video_file:
-        logger.warning("Pexels: geen resultaten voor '%s', fallback naar '%s'", query, _FALLBACK_QUERY)
+        logger.warning("Pexels: no results for '%s', falling back to '%s'", query, _FALLBACK_QUERY)
         video_file = _search(_FALLBACK_QUERY)
     if not video_file:
         raise RuntimeError(
-            f"Pexels: geen resultaten voor query '{query}' of fallback '{_FALLBACK_QUERY}'"
+            f"Pexels: no results for query '{query}' or fallback '{_FALLBACK_QUERY}'"
         )
 
     out_path = os.path.join(tmpdir, f"stock_{index:03d}_raw.mp4")
@@ -280,7 +310,7 @@ def _fetch_pexels_video(query: str, tmpdir: str, index: int) -> str:
             f.write(chunk)
 
     size_mb = Path(out_path).stat().st_size // (1024 * 1024)
-    logger.info("Pexels clip %d gedownload: %d MB (query: %s)", index, size_mb, query)
+    logger.info("Pexels clip %d downloaded: %d MB (query: %s)", index, size_mb, query)
     return out_path
 
 
@@ -314,7 +344,7 @@ def _compress_final(video_path: str, tmpdir: str) -> str:
 
     size_mb = size / (1024 * 1024)
     compressed = os.path.join(tmpdir, f"compressed_{uuid.uuid4().hex}.mp4")
-    logger.info("Video %.1f MB > 45 MB — comprimeren naar %s", size_mb, compressed)
+    logger.info("Video %.1f MB > 45 MB — compressing to %s", size_mb, compressed)
 
     subprocess.run(
         [
@@ -330,7 +360,7 @@ def _compress_final(video_path: str, tmpdir: str) -> str:
     )
 
     compressed_mb = Path(compressed).stat().st_size / (1024 * 1024)
-    logger.info("Compressie klaar: %.1f MB -> %.1f MB", size_mb, compressed_mb)
+    logger.info("Compression complete: %.1f MB -> %.1f MB", size_mb, compressed_mb)
     return compressed
 
 
@@ -369,26 +399,26 @@ def _generate_clips_stock(scenes: list[dict], audio_path: str, tmpdir: str) -> l
 
 def generate_video_for_job(video_job_id: str) -> str:
     """
-    Voer de volledige video-generatie uit voor één job.
+    Run the full video generation pipeline for one job.
 
     Reads VIDEO_MODE from env: "stock" (default) or "ltx".
 
     Args:
-        video_job_id: UUID van de video_jobs rij.
+        video_job_id: UUID of the video_jobs row.
 
     Returns:
-        Publieke URL van de geüploade video in Supabase Storage.
+        Public URL of the uploaded video in Supabase Storage.
 
     Raises:
-        ValueError:   Als verplichte velden ontbreken in de job.
-        RuntimeError: Als clip-generatie of FFmpeg mislukt.
+        ValueError:   If required fields are missing from the job.
+        RuntimeError: If clip generation or FFmpeg fails.
     """
     from utils.supabase_client import get_client
     supabase = get_client()
 
     video_mode = os.getenv("VIDEO_MODE", "stock").lower()
 
-    # 1. Haal job op
+    # 1. Fetch job
     result = (
         supabase.table("video_jobs")
         .select("title_concept, scene_prompts, voice_url")
@@ -398,17 +428,17 @@ def generate_video_for_job(video_job_id: str) -> str:
     )
     job = result.data
     if not job:
-        raise ValueError(f"Job {video_job_id} niet gevonden in Supabase")
+        raise ValueError(f"Job {video_job_id} not found in Supabase")
 
     if not job.get("scene_prompts"):
         raise ValueError(
-            f"Geen scene_prompts voor job {video_job_id} — "
-            "voer eerst de Scene Generator uit"
+            f"No scene_prompts for job {video_job_id} — "
+            "run Scene Generator first"
         )
     if not job.get("voice_url"):
         raise ValueError(
-            f"Geen voice_url voor job {video_job_id} — "
-            "voer eerst Voice Generation uit"
+            f"No voice_url for job {video_job_id} — "
+            "run Voice Generation first"
         )
 
     # 2. Parse en sorteer scenes
@@ -417,11 +447,11 @@ def generate_video_for_job(video_job_id: str) -> str:
     scenes = sorted(scenes, key=lambda s: s.get("index", 0))
 
     logger.info(
-        "Video generatie gestart (mode=%s): '%s' — %d scenes",
+        "Video generation started (mode=%s): '%s' — %d scenes",
         video_mode, job["title_concept"], len(scenes),
     )
     print(
-        f"Video generatie gestart (mode={video_mode}): "
+        f"Video generation started (mode={video_mode}): "
         f"'{job['title_concept']}' — {len(scenes)} scenes"
     )
 
@@ -449,7 +479,7 @@ def generate_video_for_job(video_job_id: str) -> str:
         # 8. Upload naar Supabase Storage
         storage_path = f"{video_job_id}.mp4"
         video_url = _upload_video(final_video, storage_path)
-        logger.info("Geüpload: %s", video_url)
+        logger.info("Uploaded: %s", video_url)
 
         # 9. Update DB
         supabase.table("video_jobs").update({

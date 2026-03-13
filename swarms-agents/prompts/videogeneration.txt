@@ -1,0 +1,37 @@
+# Scene Generation Prompt — Pexels search_query rules
+# Used by: agents/scene_generator.py (SCENE_PROMPT_SYSTEM)
+
+## Field: search_query
+
+search_query is a 2–5 word Pexels stock search string.
+
+STRICT RULES:
+- 2–5 English keywords only (nouns, object names, concrete verbs if needed)
+- NO adjectives: cinematic, dramatic, elegant, abstract, aerial, beautiful, stunning, vivid, sleek
+- NO sentences or full phrases
+- Must be concrete enough to return relevant stock footage on Pexels
+
+GOOD examples:
+  "investment app smartphone"
+  "person budgeting laptop"
+  "ETF chart up"
+  "euro banknotes counting"
+  "snowball rolling downhill"
+  "city traffic timelapse"
+  "stock market graph"
+  "hands typing keyboard"
+  "sunrise mountain landscape"
+  "factory workers assembly line"
+
+BAD examples (do NOT generate these):
+  "cinematic aerial view city"     — starts with banned adjective
+  "dramatic close-up of hands counting money"  — sentence + adjective
+  "elegant financial visualization abstract"   — multiple banned adjectives
+
+## Field: pexels_query
+
+pexels_query must equal search_query (kept for backwards compatibility).
+
+## Field: image_prompt / motion_prompt
+
+These CAN remain cinematic and descriptive — the restriction applies only to search_query.

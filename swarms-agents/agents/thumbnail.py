@@ -2,14 +2,14 @@
 """
 Thumbnail Agent
 ===============
-1. Haal job op uit Supabase (title_concept, script, scene_prompts, niche).
-2. Gebruik Claude Haiku om de visueel sterkste scene te kiezen en een
-   DALL-E 3 prompt te genereren (geen tekst/letters, cinematisch, 16:9).
-3. Genereer thumbnail via OpenAI DALL-E 3 (1792x1024, hd).
-4. Download PNG, upload naar Supabase Storage bucket "thumbnails" als {job_id}.png.
+1. Fetch job from Supabase (title_concept, script, scene_prompts, niche).
+2. Use Claude Haiku to pick the most visually powerful scene and craft a
+   Stability AI prompt (no text/letters, cinematic, 16:9).
+3. Generate thumbnail via Stability AI SDXL.
+4. Download PNG, upload to Supabase Storage bucket "thumbnails" as {job_id}.png.
 5. Update video_jobs: thumbnail_url, status → MEDIA_GENERATED.
 
-Exporteert: generate_thumbnail_for_job(video_job_id: str) -> str
+Exports: generate_thumbnail_for_job(video_job_id: str) -> str
 """
 import base64
 import json
@@ -86,13 +86,13 @@ def _build_dalle_prompt(title: str, niche: str, script_excerpt: str, scenes: lis
 
     raw = retry_call(_call, max_attempts=2, base_delay=2.0, exceptions=(Exception,))
 
-    # Strip markdown code blocks indien aanwezig
+    # Strip markdown code blocks if present
     if raw.startswith("```"):
         raw = raw[raw.index("\n") + 1:]
         raw = raw[:raw.rfind("```")].strip()
 
     if not raw:
-        raise ValueError(f"Lege response van Claude Haiku voor '{title}'")
+        raise ValueError(f"Empty response from Claude Haiku for '{title}'")
 
     return json.loads(raw)
 
@@ -135,7 +135,7 @@ def _generate_dalle_image(dalle_prompt: str) -> str:
         with open(local_path, "wb") as f:
             f.write(img_bytes)
         size_kb = len(img_bytes) // 1024
-        print(f"Stability AI afbeelding gegenereerd: {size_kb} KB")
+        print(f"Stability AI image generated: {size_kb} KB")
         return local_path
 
     return retry_call(_call, max_attempts=2, base_delay=3.0, exceptions=(Exception,))
@@ -153,12 +153,12 @@ def _download_image(url: str, tmpdir: str) -> str:
     with open(local_path, "wb") as f:
         f.write(resp.content)
     size_kb = Path(local_path).stat().st_size // 1024
-    print(f"Thumbnail gedownload: {size_kb} KB")
+    print(f"Thumbnail downloaded: {size_kb} KB")
     return local_path
 
 
 def _upload_thumbnail(local_path: str, storage_path: str) -> str:
-    """Upload PNG naar Supabase Storage bucket 'thumbnails', geeft public URL terug."""
+    """Upload PNG to Supabase Storage bucket 'thumbnails', returns public URL."""
     from utils.supabase_client import get_client
     supabase = get_client()
 
@@ -185,18 +185,18 @@ def _upload_thumbnail(local_path: str, storage_path: str) -> str:
 
 def generate_thumbnail_for_job(video_job_id: str) -> str:
     """
-    Genereer en upload een YouTube thumbnail voor de gegeven job.
+    Generate and upload a YouTube thumbnail for the given job.
 
     Args:
-        video_job_id: UUID van de video_jobs rij.
+        video_job_id: UUID of the video_jobs row.
 
     Returns:
-        Publieke URL van de thumbnail in Supabase Storage.
+        Public URL of the thumbnail in Supabase Storage.
     """
     from utils.supabase_client import get_client
     supabase = get_client()
 
-    # 1. Haal job op
+    # 1. Fetch job
     result = (
         supabase.table("video_jobs")
         .select("title_concept, script, scene_prompts, niche")
@@ -206,16 +206,16 @@ def generate_thumbnail_for_job(video_job_id: str) -> str:
     )
     job = result.data
     if not job:
-        raise ValueError(f"Job {video_job_id} niet gevonden")
+        raise ValueError(f"Job {video_job_id} not found")
     if not job.get("scene_prompts"):
-        raise ValueError(f"Geen scene_prompts voor job {video_job_id}")
+        raise ValueError(f"No scene_prompts for job {video_job_id}")
 
     raw_scenes = job["scene_prompts"]
     scenes: list[dict] = json.loads(raw_scenes) if isinstance(raw_scenes, str) else raw_scenes
     scenes = sorted(scenes, key=lambda s: s.get("index", 0))
 
     script_excerpt = (job.get("script") or "")[:1000]
-    print(f"Thumbnail generatie: '{job['title_concept']}' — {len(scenes)} scenes beschikbaar")
+    print(f"Thumbnail generation: '{job['title_concept']}' — {len(scenes)} scenes available")
 
     local_png: str | None = None
     try:
@@ -228,17 +228,17 @@ def generate_thumbnail_for_job(video_job_id: str) -> str:
         )
         dalle_prompt = prompt_data["dalle_prompt"]
         rationale = prompt_data.get("concept_rationale", "")
-        print(f"Prompt gegenereerd: {dalle_prompt[:80]}...")
+        print(f"Prompt generated: {dalle_prompt[:80]}...")
         print(f"Rationale: {rationale[:80]}")
 
         # 3. Stability AI → local PNG file
         local_png = _generate_dalle_image(dalle_prompt)
-        print(f"Afbeelding opgeslagen: {local_png}")
+        print(f"Image saved: {local_png}")
 
         # 4. Upload naar Supabase
         storage_path = f"{video_job_id}.png"
         thumbnail_url = _upload_thumbnail(local_png, storage_path)
-        print(f"Geüpload: {thumbnail_url}")
+        print(f"Uploaded: {thumbnail_url}")
 
         # 5. Update DB
         supabase.table("video_jobs").update({
