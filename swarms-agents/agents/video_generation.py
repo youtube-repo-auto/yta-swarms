@@ -285,15 +285,15 @@ def _fetch_pexels_video(query: str, tmpdir: str, index: int) -> str:
 
 
 def _trim_clip(src: str, duration: float, dst: str) -> None:
-    """Trim and re-encode clip to H.264 1080p so all clips are concat-compatible."""
+    """Trim and re-encode clip to H.264 720p so all clips are concat-compatible."""
     subprocess.run(
         [
             "ffmpeg", "-y",
             "-i", src,
             "-t", str(duration),
-            "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,"
-                   "pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,"
+                   "pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+            "-c:v", "libx264", "-preset", "faster", "-crf", "28",
             "-an",  # strip audio from stock clip; voice-over added in _mux_audio
             dst,
         ],
@@ -301,6 +301,37 @@ def _trim_clip(src: str, duration: float, dst: str) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+_COMPRESS_THRESHOLD_BYTES = 45 * 1024 * 1024  # 45 MB
+
+
+def _compress_final(video_path: str, tmpdir: str) -> str:
+    """Re-encode video if larger than 45 MB. Returns path to use (original or compressed)."""
+    size = Path(video_path).stat().st_size
+    if size <= _COMPRESS_THRESHOLD_BYTES:
+        return video_path
+
+    size_mb = size / (1024 * 1024)
+    compressed = os.path.join(tmpdir, f"compressed_{uuid.uuid4().hex}.mp4")
+    logger.info("Video %.1f MB > 45 MB — comprimeren naar %s", size_mb, compressed)
+
+    subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-c:v", "libx264", "-crf", "30", "-preset", "fast",
+            "-c:a", "aac", "-b:a", "128k",
+            compressed,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    compressed_mb = Path(compressed).stat().st_size / (1024 * 1024)
+    logger.info("Compressie klaar: %.1f MB -> %.1f MB", size_mb, compressed_mb)
+    return compressed
 
 
 def _generate_clips_stock(scenes: list[dict], audio_path: str, tmpdir: str) -> list[str]:
@@ -412,12 +443,15 @@ def generate_video_for_job(video_job_id: str) -> str:
         # 6. Mux audio
         final_video = _mux_audio(silent_video, audio_path, tmpdir)
 
-        # 7. Upload naar Supabase Storage
+        # 7. Compress if > 45 MB
+        final_video = _compress_final(final_video, tmpdir)
+
+        # 8. Upload naar Supabase Storage
         storage_path = f"{video_job_id}.mp4"
         video_url = _upload_video(final_video, storage_path)
         logger.info("Geüpload: %s", video_url)
 
-        # 8. Update DB
+        # 9. Update DB
         supabase.table("video_jobs").update({
             "status": "VIDEO_GENERATED",
             "video_url": video_url,
