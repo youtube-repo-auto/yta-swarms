@@ -109,12 +109,26 @@ def _concatenate_clips(clip_paths: list[str], tmpdir: str) -> str:
 
 
 def _download_audio(audio_url: str, tmpdir: str) -> str:
-    """Download audio van URL naar tijdelijk bestand."""
+    """Download audio naar tijdelijk bestand via Supabase SDK of HTTP GET.
+
+    Supabase Storage public URLs return HTTP 400 when fetched directly.
+    Detect the storage URL pattern and use the SDK instead.
+    """
     audio_path = os.path.join(tmpdir, f"audio_{uuid.uuid4().hex}.mp3")
-    resp = requests.get(audio_url, timeout=60)
-    resp.raise_for_status()
-    with open(audio_path, "wb") as f:
-        f.write(resp.content)
+
+    _STORAGE_MARKER = "/storage/v1/object/public/audio/"
+    if _STORAGE_MARKER in audio_url:
+        storage_path = audio_url.split(_STORAGE_MARKER, 1)[1].split("?")[0]
+        from utils.supabase_client import get_client
+        data = get_client().storage.from_("audio").download(storage_path)
+        with open(audio_path, "wb") as f:
+            f.write(data)
+    else:
+        resp = requests.get(audio_url, timeout=60)
+        resp.raise_for_status()
+        with open(audio_path, "wb") as f:
+            f.write(resp.content)
+
     size_kb = Path(audio_path).stat().st_size // 1024
     print(f"Audio gedownload: {size_kb} KB: {audio_path}")
     return audio_path
