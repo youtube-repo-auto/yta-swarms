@@ -11,6 +11,7 @@ Thumbnail Agent
 
 Exporteert: generate_thumbnail_for_job(video_job_id: str) -> str
 """
+import base64
 import json
 import os
 import tempfile
@@ -20,14 +21,18 @@ from pathlib import Path
 import requests
 from anthropic import Anthropic
 from dotenv import load_dotenv
-from openai import OpenAI
 
 from utils.retry import retry_call
 
 load_dotenv()
 
 _anthropic = Anthropic()
-_openai = OpenAI()
+
+_STABILITY_API_KEY = os.getenv("STABILITY_API_KEY")
+_STABILITY_URL = (
+    "https://api.stability.ai/v1/generation"
+    "/stable-diffusion-xl-1024-v1-0/text-to-image"
+)
 
 # ---------------------------------------------------------------------------
 # Prompts
@@ -93,20 +98,45 @@ def _build_dalle_prompt(title: str, niche: str, script_excerpt: str, scenes: lis
 
 
 # ---------------------------------------------------------------------------
-# Step 2 – DALL-E 3 generates image
+# Step 2 – Stability AI generates image
 # ---------------------------------------------------------------------------
 
 def _generate_dalle_image(dalle_prompt: str) -> str:
-    """Call DALL-E 3, return URL of the generated image."""
+    """Call Stability AI SDXL, decode base64 PNG, save to temp file, return local path."""
+    if not _STABILITY_API_KEY:
+        raise EnvironmentError("STABILITY_API_KEY is not set in environment.")
+
     def _call() -> str:
-        response = _openai.images.generate(
-            model="dall-e-3",
-            prompt=dalle_prompt,
-            size="1792x1024",
-            quality="hd",
-            n=1,
+        resp = requests.post(
+            _STABILITY_URL,
+            headers={
+                "Authorization": f"Bearer {_STABILITY_API_KEY}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json={
+                "text_prompts": [{"text": dalle_prompt, "weight": 1.0}],
+                "width": 1344,
+                "height": 768,
+                "cfg_scale": 7,
+                "steps": 30,
+                "samples": 1,
+            },
+            timeout=120,
         )
-        return response.data[0].url
+        resp.raise_for_status()
+        artifact = resp.json()["artifacts"][0]
+        if artifact.get("finishReason") not in ("SUCCESS", "success"):
+            raise ValueError(f"Stability AI finishReason: {artifact.get('finishReason')}")
+        img_bytes = base64.b64decode(artifact["base64"])
+        local_path = os.path.join(
+            tempfile.mkdtemp(prefix="stab_"), f"thumbnail_{uuid.uuid4().hex}.png"
+        )
+        with open(local_path, "wb") as f:
+            f.write(img_bytes)
+        size_kb = len(img_bytes) // 1024
+        print(f"Stability AI afbeelding gegenereerd: {size_kb} KB")
+        return local_path
 
     return retry_call(_call, max_attempts=2, base_delay=3.0, exceptions=(Exception,))
 
@@ -187,10 +217,9 @@ def generate_thumbnail_for_job(video_job_id: str) -> str:
     script_excerpt = (job.get("script") or "")[:1000]
     print(f"Thumbnail generatie: '{job['title_concept']}' — {len(scenes)} scenes beschikbaar")
 
-    tmpdir = tempfile.mkdtemp(prefix=f"thumb_{video_job_id[:8]}_")
-
+    local_png: str | None = None
     try:
-        # 2. Claude Haiku → DALL-E 3 prompt
+        # 2. Claude Haiku → image prompt
         prompt_data = _build_dalle_prompt(
             title=job["title_concept"],
             niche=job.get("niche") or "",
@@ -202,12 +231,11 @@ def generate_thumbnail_for_job(video_job_id: str) -> str:
         print(f"Prompt gegenereerd: {dalle_prompt[:80]}...")
         print(f"Rationale: {rationale[:80]}")
 
-        # 3. DALL-E 3 → image URL
-        image_url = _generate_dalle_image(dalle_prompt)
-        print(f"DALL-E 3 afbeelding: {image_url[:80]}...")
+        # 3. Stability AI → local PNG file
+        local_png = _generate_dalle_image(dalle_prompt)
+        print(f"Afbeelding opgeslagen: {local_png}")
 
-        # 4. Download + upload naar Supabase
-        local_png = _download_image(image_url, tmpdir)
+        # 4. Upload naar Supabase
         storage_path = f"{video_job_id}.png"
         thumbnail_url = _upload_thumbnail(local_png, storage_path)
         print(f"Geüpload: {thumbnail_url}")
@@ -222,10 +250,11 @@ def generate_thumbnail_for_job(video_job_id: str) -> str:
         return thumbnail_url
 
     finally:
-        # Cleanup temp bestanden
-        for p in Path(tmpdir).iterdir():
+        # Cleanup temp PNG and its parent dir
+        if local_png:
+            p = Path(local_png)
             p.unlink(missing_ok=True)
-        try:
-            Path(tmpdir).rmdir()
-        except OSError:
-            pass
+            try:
+                p.parent.rmdir()
+            except OSError:
+                pass

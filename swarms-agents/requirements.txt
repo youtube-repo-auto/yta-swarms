@@ -1,6 +1,6 @@
 # LLM SDKs (direct, no swarms dependency)
 anthropic>=0.40.0
-openai>=1.50.0          # DALL-E 3 thumbnail generation only
+openai>=1.50.0          # kept for any remaining OpenAI calls (e.g. Whisper if added)
 
 # Supabase
 supabase>=2.0.0
