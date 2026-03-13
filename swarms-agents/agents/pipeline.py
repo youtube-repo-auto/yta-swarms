@@ -8,6 +8,7 @@ skipping steps whose prerequisite status has already been reached.
 Step order:
   IDEA          -> research        -> RESEARCHED
   RESEARCHED    -> script_writer   -> SCRIPTED
+  SCRIPTED      -> scene_generator -> scene_prompts populated (no status change)
   SCRIPTED      -> voice_generation -> VOICE_GENERATED
   VOICE_GENERATED -> video_generation -> VIDEO_GENERATED
   VIDEO_GENERATED -> thumbnail     -> MEDIA_GENERATED
@@ -57,6 +58,20 @@ def _fetch_status(video_job_id: str) -> str:
     if not resp.data:
         raise ValueError(f"Job {video_job_id} niet gevonden")
     return resp.data["status"]
+
+
+def _fetch_field(video_job_id: str, field: str):
+    """Fetch a single field from video_jobs. Returns None if missing."""
+    from utils.supabase_client import get_client
+    resp = (
+        get_client()
+        .table("video_jobs")
+        .select(field)
+        .eq("id", video_job_id)
+        .single()
+        .execute()
+    )
+    return resp.data.get(field) if resp.data else None
 
 
 def _run_step(name: str, fn, *args, **kwargs):
@@ -115,7 +130,20 @@ def run_pipeline(video_job_id: str) -> dict:
         print(f"[pipeline] SKIP  script_writer (status={status})")
 
     # ------------------------------------------------------------------ #
-    # Step 3: Voice generation  (SCRIPTED → VOICE_GENERATED)
+    # Step 3: Scene generator  (SCRIPTED → scene_prompts populated)
+    # scene_generator sets no status; skip if scene_prompts already present
+    # ------------------------------------------------------------------ #
+    if not _fetch_field(video_job_id, "scene_prompts"):
+        try:
+            from agents.scene_generator import generate_scenes_for_job
+            _run_step("scene_generator", generate_scenes_for_job, video_job_id)
+        except Exception as exc:
+            raise RuntimeError(f"[scene_generator] mislukt: {exc}") from exc
+    else:
+        print("[pipeline] SKIP  scene_generator (scene_prompts already set)")
+
+    # ------------------------------------------------------------------ #
+    # Step 4: Voice generation  (SCRIPTED → VOICE_GENERATED)
     # ------------------------------------------------------------------ #
     status = _fetch_status(video_job_id)
     if _status_index(status) < _status_index("VOICE_GENERATED"):
@@ -128,7 +156,7 @@ def run_pipeline(video_job_id: str) -> dict:
         print(f"[pipeline] SKIP  voice_generation (status={status})")
 
     # ------------------------------------------------------------------ #
-    # Step 4: Video generation  (VOICE_GENERATED → VIDEO_GENERATED)
+    # Step 5: Video generation  (VOICE_GENERATED → VIDEO_GENERATED)
     # ------------------------------------------------------------------ #
     status = _fetch_status(video_job_id)
     if _status_index(status) < _status_index("VIDEO_GENERATED"):
@@ -141,7 +169,7 @@ def run_pipeline(video_job_id: str) -> dict:
         print(f"[pipeline] SKIP  video_generation (status={status})")
 
     # ------------------------------------------------------------------ #
-    # Step 5: Thumbnail  (VIDEO_GENERATED → MEDIA_GENERATED)
+    # Step 6: Thumbnail  (VIDEO_GENERATED → MEDIA_GENERATED)
     # ------------------------------------------------------------------ #
     status = _fetch_status(video_job_id)
     if _status_index(status) < _status_index("MEDIA_GENERATED"):
@@ -154,7 +182,7 @@ def run_pipeline(video_job_id: str) -> dict:
         print(f"[pipeline] SKIP  thumbnail (status={status})")
 
     # ------------------------------------------------------------------ #
-    # Step 6: SEO optimization  (MEDIA_GENERATED → SEO_OPTIMIZED)
+    # Step 7: SEO optimization  (MEDIA_GENERATED → SEO_OPTIMIZED)
     # ------------------------------------------------------------------ #
     status = _fetch_status(video_job_id)
     if _status_index(status) < _status_index("SEO_OPTIMIZED"):
@@ -167,7 +195,7 @@ def run_pipeline(video_job_id: str) -> dict:
         print(f"[pipeline] SKIP  seo_optimization (status={status})")
 
     # ------------------------------------------------------------------ #
-    # Step 7: Publishing  (SEO_OPTIMIZED → PUBLISHED)
+    # Step 8: Publishing  (SEO_OPTIMIZED → PUBLISHED)
     # ------------------------------------------------------------------ #
     status = _fetch_status(video_job_id)
     youtube_url = None
