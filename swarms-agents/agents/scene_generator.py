@@ -79,7 +79,7 @@ Respond with ONLY the raw JSON object. No markdown, no code blocks, no explanati
 
     result = json.loads(raw)
     scenes = result.get("scenes", [])
-    print(f"✓ {len(scenes)} scenes generated for '{title}'")
+    print(f"OK {len(scenes)} scenes generated for '{title}'")
     return scenes
 
 
@@ -113,5 +113,5 @@ def generate_scenes_for_job(video_job_id: str) -> list[dict]:
         "scene_prompts": json.dumps(scenes),
     }).eq("id", video_job_id).execute()
 
-    print(f"✓ Scenes saved for job {video_job_id}")
+    print(f"OK Scenes saved for job {video_job_id}")
     return scenes

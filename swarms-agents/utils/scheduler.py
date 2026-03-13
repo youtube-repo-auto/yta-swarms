@@ -63,29 +63,33 @@ def _release_lock() -> None:
 # DB helpers
 # ---------------------------------------------------------------------------
 
+def _channel_id() -> str | None:
+    return os.getenv("CHANNEL_ID")
+
+
 def _count_idea_jobs() -> int:
     from utils.supabase_client import get_client
-    resp = (
-        get_client()
-        .table("video_jobs")
-        .select("id", count="exact")
-        .eq("status", "IDEA")
-        .execute()
-    )
-    return resp.count or 0
+    q = get_client().table("video_jobs").select("id", count="exact").eq("status", "IDEA")
+    channel_id = _channel_id()
+    if channel_id:
+        q = q.eq("channel_id", channel_id)
+    return q.execute().count or 0
 
 
 def _oldest_idea_job_id() -> str | None:
     from utils.supabase_client import get_client
-    resp = (
+    q = (
         get_client()
         .table("video_jobs")
         .select("id")
         .eq("status", "IDEA")
         .order("created_at", desc=False)
         .limit(1)
-        .execute()
     )
+    channel_id = _channel_id()
+    if channel_id:
+        q = q.eq("channel_id", channel_id)
+    resp = q.execute()
     if resp.data:
         return resp.data[0]["id"]
     return None
@@ -97,7 +101,7 @@ def _oldest_idea_job_id() -> str | None:
 
 def _generate_ideas() -> None:
     """Call run_content_planning with niche from env and empty context."""
-    niche = os.getenv("CHANNEL_NICHE", "general YouTube channel")
+    niche = os.getenv("NICHE", os.getenv("CHANNEL_NICHE", "general YouTube channel"))
     logger.info("Geen IDEA jobs gevonden — genereer 3 nieuwe ideeën voor niche='%s'", niche)
 
     from agents.content_planning import run_content_planning
