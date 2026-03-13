@@ -11,6 +11,11 @@ pydantic>=2.5.0
 # Environment variables
 python-dotenv>=1.0.0
 
+# YouTube Data API v3
+google-api-python-client>=2.100.0
+google-auth>=2.20.0
+google-auth-httplib2>=0.2.0
+
 # HTTP / search
 requests>=2.31.0
 duckduckgo-search>=6.0.0   # Free fallback; optional if SerpAPI is used
