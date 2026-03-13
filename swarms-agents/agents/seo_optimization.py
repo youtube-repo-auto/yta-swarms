@@ -12,12 +12,16 @@ SEO Optimization Agent
 Exporteert: generate_seo_for_job(video_job_id: str) -> dict
 """
 import json
+import logging
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
+from utils.retry import retry_call
+
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 _anthropic = Anthropic()
 
 # ---------------------------------------------------------------------------
@@ -56,14 +60,16 @@ def _generate_seo(title: str, niche: str, script_excerpt: str, keywords: list[st
         "Stuur ALLEEN het ruwe JSON-object terug. Geen markdown, geen uitleg."
     )
 
-    response = _anthropic.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=4096,
-        temperature=0.0,
-        messages=[{"role": "user", "content": f"{_SYSTEM}\n\n{user_msg}"}],
-    )
+    def _call() -> str:
+        response = _anthropic.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            temperature=0.0,
+            messages=[{"role": "user", "content": f"{_SYSTEM}\n\n{user_msg}"}],
+        )
+        return response.content[0].text.strip()
 
-    raw = response.content[0].text.strip()
+    raw = retry_call(_call, max_attempts=2, base_delay=2.0, exceptions=(Exception,))
 
     # Strip markdown code blocks indien aanwezig
     if raw.startswith("```"):
@@ -143,20 +149,9 @@ def generate_seo_for_job(video_job_id: str) -> dict:
 
     print(f"SEO optimalisatie: '{title}'")
 
-    # 2. Genereer met retry (max 2 pogingen)
-    last_exc: Exception | None = None
-    seo_data: dict | None = None
-    for attempt in range(1, 3):
-        try:
-            raw_data = _generate_seo(title, niche, script_excerpt, keywords)
-            seo_data = _validate(raw_data, title)
-            break
-        except Exception as exc:
-            last_exc = exc
-            print(f"Poging {attempt}/2 mislukt: {exc}")
-
-    if seo_data is None:
-        raise ValueError(f"SEO generatie mislukt na 2 pogingen: {last_exc}") from last_exc
+    # 2. Genereer en valideer (retry zit in _generate_seo via retry_call)
+    raw_data = _generate_seo(title, niche, script_excerpt, keywords)
+    seo_data = _validate(raw_data, title)
 
     print(f"Titel ({len(seo_data['seo_title'])} tekens): {seo_data['seo_title']}")
     print(f"Tags ({len(seo_data['seo_tags'])} tekens): {seo_data['seo_tags'][:80]}...")
@@ -165,9 +160,7 @@ def generate_seo_for_job(video_job_id: str) -> dict:
     supabase.table("video_jobs").update({
         "seo_title": seo_data["seo_title"],
         "seo_description": seo_data["seo_description"],
-        "seo_tags": json.dumps(
-            [t.strip() for t in seo_data["seo_tags"].split(",") if t.strip()]
-        ),
+        "seo_tags": seo_data["seo_tags"],
         "status": "SEO_OPTIMIZED",
     }).eq("id", video_job_id).execute()
 
