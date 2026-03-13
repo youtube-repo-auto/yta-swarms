@@ -25,6 +25,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -129,7 +130,7 @@ def _mux_audio(video_path: str, audio_path: str, tmpdir: str) -> str:
     return output_path
 
 
-def _upload_video(local_path: str, storage_path: str) -> str:
+def _upload_video(local_path: str, storage_path: str, max_attempts: int = 3) -> str:
     """Upload MP4 to Supabase Storage bucket 'videos', returns public URL."""
     from utils.supabase_client import get_client
     supabase = get_client()
@@ -137,18 +138,41 @@ def _upload_video(local_path: str, storage_path: str) -> str:
     with open(local_path, "rb") as f:
         data = f.read()
 
-    try:
-        supabase.storage.from_("videos").remove([storage_path])
-    except Exception:
-        pass
+    last_exc: Exception | None = None
 
-    supabase.storage.from_("videos").upload(
-        path=storage_path,
-        file=data,
-        file_options={"content-type": "video/mp4"},
+    for attempt in range(1, max_attempts + 1):
+        try:
+            logger.info(
+                "Uploading video to Supabase: %s (attempt %d/%d)",
+                storage_path, attempt, max_attempts,
+            )
+
+            try:
+                supabase.storage.from_("videos").remove([storage_path])
+            except Exception as exc:
+                logger.debug("Ignore remove error for %s: %r", storage_path, exc)
+
+            supabase.storage.from_("videos").upload(
+                path=storage_path,
+                file=data,
+                file_options={"content-type": "video/mp4"},
+            )
+
+            url = supabase.storage.from_("videos").get_public_url(storage_path)
+            logger.info("Video uploaded OK: %s", url)
+            return url
+
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "Video upload failed (attempt %d/%d): %r",
+                attempt, max_attempts, exc,
+            )
+            time.sleep(2 * attempt)
+
+    raise RuntimeError(
+        f"Supabase video upload failed after {max_attempts} attempts: {last_exc!r}"
     )
-
-    return supabase.storage.from_("videos").get_public_url(storage_path)
 
 
 # ---------------------------------------------------------------------------
