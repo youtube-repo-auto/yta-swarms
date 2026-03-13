@@ -32,6 +32,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from utils.supabase_upload import upload_to_bucket
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -133,46 +135,7 @@ def _mux_audio(video_path: str, audio_path: str, tmpdir: str) -> str:
 def _upload_video(local_path: str, storage_path: str, max_attempts: int = 3) -> str:
     """Upload MP4 to Supabase Storage bucket 'videos', returns public URL."""
     from utils.supabase_client import get_client
-    supabase = get_client()
-
-    with open(local_path, "rb") as f:
-        data = f.read()
-
-    last_exc: Exception | None = None
-
-    for attempt in range(1, max_attempts + 1):
-        try:
-            logger.info(
-                "Uploading video to Supabase: %s (attempt %d/%d)",
-                storage_path, attempt, max_attempts,
-            )
-
-            try:
-                supabase.storage.from_("videos").remove([storage_path])
-            except Exception as exc:
-                logger.debug("Ignore remove error for %s: %r", storage_path, exc)
-
-            supabase.storage.from_("videos").upload(
-                path=storage_path,
-                file=data,
-                file_options={"content-type": "video/mp4"},
-            )
-
-            url = supabase.storage.from_("videos").get_public_url(storage_path)
-            logger.info("Video uploaded OK: %s", url)
-            return url
-
-        except Exception as exc:
-            last_exc = exc
-            logger.warning(
-                "Video upload failed (attempt %d/%d): %r",
-                attempt, max_attempts, exc,
-            )
-            time.sleep(2 * attempt)
-
-    raise RuntimeError(
-        f"Supabase video upload failed after {max_attempts} attempts: {last_exc!r}"
-    )
+    return upload_to_bucket(get_client(), "videos", local_path, storage_path, "video/mp4", max_attempts)
 
 
 # ---------------------------------------------------------------------------

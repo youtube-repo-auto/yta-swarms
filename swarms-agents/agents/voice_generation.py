@@ -7,6 +7,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
 import re
+import logging
+
+from utils.supabase_upload import upload_to_bucket
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -55,20 +60,9 @@ def generate_audio(script_text: str, voice: str = DEFAULT_VOICE) -> str:
     return output_path
 
 
-def upload_to_supabase(local_path: str, storage_path: str) -> str:
-    with open(local_path, "rb") as f:
-        data = f.read()
-    try:
-        supabase.storage.from_("audio").remove([storage_path])
-    except Exception:
-        pass
-    supabase.storage.from_("audio").upload(
-        path=storage_path,
-        file=data,
-        file_options={"content-type": "audio/mpeg"},
-    )
-    url = supabase.storage.from_("audio").get_public_url(storage_path)
-    return url
+def upload_to_supabase(local_path: str, storage_path: str, max_attempts: int = 3) -> str:
+    """Upload audio-bestand naar Supabase met retries rond netwerk/SSL fouten."""
+    return upload_to_bucket(supabase, "audio", local_path, storage_path, "audio/mpeg", max_attempts)
 
 
 def generate_voice_for_job(video_job_id: str, voice: str = DEFAULT_VOICE) -> str:
@@ -98,8 +92,14 @@ def generate_voice_for_job(video_job_id: str, voice: str = DEFAULT_VOICE) -> str
 
     # 3. Upload to Supabase Storage
     storage_path = f"{video_job_id}.mp3"
-    voice_url = upload_to_supabase(audio_file, storage_path)
-    print(f"Uploaded: {voice_url}")
+    try:
+        voice_url = upload_to_supabase(audio_file, storage_path)
+    except UnboundLocalError as exc:
+        # defensive: bug in storage3 die 'response' niet zet
+        raise RuntimeError(
+            "Supabase storage upload bug (UnboundLocalError); "
+            "waarschijnlijk een onderliggende SSL/connection fout"
+        ) from exc
 
     # 4. Update DB: status + script_word_count
     supabase.table("video_jobs").update({

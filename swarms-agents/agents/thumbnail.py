@@ -23,6 +23,7 @@ from anthropic import Anthropic
 from dotenv import load_dotenv
 
 from utils.retry import retry_call
+from utils.supabase_upload import upload_to_bucket
 
 load_dotenv()
 
@@ -160,23 +161,7 @@ def _download_image(url: str, tmpdir: str) -> str:
 def _upload_thumbnail(local_path: str, storage_path: str) -> str:
     """Upload PNG to Supabase Storage bucket 'thumbnails', returns public URL."""
     from utils.supabase_client import get_client
-    supabase = get_client()
-
-    with open(local_path, "rb") as f:
-        data = f.read()
-
-    try:
-        supabase.storage.from_("thumbnails").remove([storage_path])
-    except Exception:
-        pass
-
-    supabase.storage.from_("thumbnails").upload(
-        path=storage_path,
-        file=data,
-        file_options={"content-type": "image/png"},
-    )
-
-    return supabase.storage.from_("thumbnails").get_public_url(storage_path)
+    return upload_to_bucket(get_client(), "thumbnails", local_path, storage_path, "image/png")
 
 
 # ---------------------------------------------------------------------------
