@@ -56,7 +56,7 @@ def _fetch_status(video_job_id: str) -> str:
         .execute()
     )
     if not resp.data:
-        raise ValueError(f"Job {video_job_id} niet gevonden")
+        raise ValueError(f"Job {video_job_id} not found")
     return resp.data["status"]
 
 
@@ -112,35 +112,53 @@ def run_pipeline(video_job_id: str) -> dict:
             from agents.research import run_research
             _run_step("research", run_research, job_id=video_job_id)
         except Exception as exc:
-            raise RuntimeError(f"[research] mislukt: {exc}") from exc
+            raise RuntimeError(f"[research] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  research (status={status})")
 
     # ------------------------------------------------------------------ #
     # Step 2: Script writing  (RESEARCHED → SCRIPTED)
+    # Branch on format: SHORT → shorts_script_writer, LONG → scriptwriting
     # ------------------------------------------------------------------ #
     status = _fetch_status(video_job_id)
     if _status_index(status) < _status_index("SCRIPTED"):
+        job_format = (_fetch_field(video_job_id, "format") or "LONG").upper()
         try:
-            from agents.scriptwriting import run_scriptwriting
-            _run_step("script_writer", run_scriptwriting, job_id=video_job_id)
+            if job_format == "SHORT":
+                from agents.shorts_script_writer import run_shorts_scriptwriting
+                _run_step("shorts_script_writer", run_shorts_scriptwriting, video_job_id)
+            else:
+                from agents.scriptwriting import run_scriptwriting
+                _run_step("script_writer", run_scriptwriting, job_id=video_job_id)
         except Exception as exc:
-            raise RuntimeError(f"[script_writer] mislukt: {exc}") from exc
+            raise RuntimeError(f"[script_writer/{job_format}] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  script_writer (status={status})")
 
     # ------------------------------------------------------------------ #
     # Step 3: Scene generator  (SCRIPTED → scene_prompts populated)
-    # scene_generator sets no status; skip if scene_prompts already present
+    # Skip only if scene_prompts exists AND every scene has search_query set.
     # ------------------------------------------------------------------ #
-    if not _fetch_field(video_job_id, "scene_prompts"):
+    def _scenes_have_search_query() -> bool:
+        import json as _json
+        raw = _fetch_field(video_job_id, "scene_prompts")
+        if not raw:
+            return False
+        scenes = _json.loads(raw) if isinstance(raw, str) else raw
+        return (
+            isinstance(scenes, list)
+            and len(scenes) > 0
+            and all(bool(s.get("search_query", "").strip()) for s in scenes)
+        )
+
+    if not _scenes_have_search_query():
         try:
             from agents.scene_generator import generate_scenes_for_job
             _run_step("scene_generator", generate_scenes_for_job, video_job_id)
         except Exception as exc:
-            raise RuntimeError(f"[scene_generator] mislukt: {exc}") from exc
+            raise RuntimeError(f"[scene_generator] failed: {exc}") from exc
     else:
-        print("[pipeline] SKIP  scene_generator (scene_prompts already set)")
+        print("[pipeline] SKIP  scene_generator (scene_prompts with search_query already set)")
 
     # ------------------------------------------------------------------ #
     # Step 4: Voice generation  (SCRIPTED → VOICE_GENERATED)
@@ -151,7 +169,7 @@ def run_pipeline(video_job_id: str) -> dict:
             from agents.voice_generation import generate_voice_for_job
             _run_step("voice_generation", generate_voice_for_job, video_job_id)
         except Exception as exc:
-            raise RuntimeError(f"[voice_generation] mislukt: {exc}") from exc
+            raise RuntimeError(f"[voice_generation] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  voice_generation (status={status})")
 
@@ -164,7 +182,7 @@ def run_pipeline(video_job_id: str) -> dict:
             from agents.video_generation import generate_video_for_job
             _run_step("video_generation", generate_video_for_job, video_job_id)
         except Exception as exc:
-            raise RuntimeError(f"[video_generation] mislukt: {exc}") from exc
+            raise RuntimeError(f"[video_generation] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  video_generation (status={status})")
 
@@ -177,7 +195,7 @@ def run_pipeline(video_job_id: str) -> dict:
             from agents.thumbnail import generate_thumbnail_for_job
             _run_step("thumbnail", generate_thumbnail_for_job, video_job_id)
         except Exception as exc:
-            raise RuntimeError(f"[thumbnail] mislukt: {exc}") from exc
+            raise RuntimeError(f"[thumbnail] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  thumbnail (status={status})")
 
@@ -190,7 +208,7 @@ def run_pipeline(video_job_id: str) -> dict:
             from agents.seo_optimization import generate_seo_for_job
             _run_step("seo_optimization", generate_seo_for_job, video_job_id)
         except Exception as exc:
-            raise RuntimeError(f"[seo_optimization] mislukt: {exc}") from exc
+            raise RuntimeError(f"[seo_optimization] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  seo_optimization (status={status})")
 
@@ -205,7 +223,7 @@ def run_pipeline(video_job_id: str) -> dict:
             result = _run_step("publishing", publish_job, video_job_id)
             youtube_url = result.get("youtube_url")
         except Exception as exc:
-            raise RuntimeError(f"[publishing] mislukt: {exc}") from exc
+            raise RuntimeError(f"[publishing] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  publishing (status={status})")
 
@@ -213,7 +231,7 @@ def run_pipeline(video_job_id: str) -> dict:
     # Done
     # ------------------------------------------------------------------ #
     final_status = _fetch_status(video_job_id)
-    print(f"\n[pipeline] Klaar. Job {video_job_id} -> {final_status}")
+    print(f"\n[pipeline] Done. Job {video_job_id} -> {final_status}")
     if youtube_url:
         print(f"[pipeline] YouTube URL: {youtube_url}")
 

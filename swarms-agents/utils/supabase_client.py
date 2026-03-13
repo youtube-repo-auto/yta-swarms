@@ -67,7 +67,11 @@ class VideoJob(BaseModel):
     title_concept: str | None = None
     outline: str | None = None
     keyword_targets: list[str] | None = None
-    estimated_appeal: int | None = Field(None, ge=1, le=10)
+    estimated_appeal: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
     research_data: dict | None = None
     script: str | None = None
     script_approved: bool = False
@@ -79,6 +83,7 @@ class VideoJob(BaseModel):
     seo_tags: list[str] | None = None
     youtube_video_id: str | None = None
     error_message: str | None = None
+    format: str = "LONG"
     created_at: str | None = None
     updated_at: str | None = None
 
