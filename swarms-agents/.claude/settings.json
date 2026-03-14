@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python -c \"from agents.video_generation import generate_video_for_job; generate_video_for_job\\(''1a3e6ac3-3bd2-4310-b2ed-bc72c13bbcb7''\\)\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(/c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python -c \"from utils.supabase_upload import upload_to_bucket; from agents.voice_generation import upload_to_supabase; from agents.video_generation import _upload_video; from agents.thumbnail import _upload_thumbnail; print\\(''OK''\\)\")",
+      "Bash(/c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python -c \"from agents.pipeline import run_pipeline; print\\(run_pipeline\\(''1a3e6ac3-3bd2-4310-b2ed-bc72c13bbcb7''\\)\\)\")",
+      "Bash(/c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python -c \"from utils.scheduler import run_once; run_once\\(\\)\")",
+      "Bash(CHANNEL_ID=5400b43e-73ae-428b-b72d-a02e3d986cf1 NICHE=snowball_wealth /c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python -c \"from utils.scheduler import run_once; run_once\\(\\)\")",
+      "Bash(/c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python -c \"import httpx; print\\(httpx.__version__\\)\")",
+      "Bash(/c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python -c \"from agents.pipeline import run_pipeline; print\\(run_pipeline\\(''229fe046-8ddd-4957-9ec8-026474e8c361''\\)\\)\")",
+      "Bash(source /c/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/activate)",
+      "Bash(python -c \":*)",
+      "Bash(C:/Users/MikeDonker/Projects/yta-swarms/venv/Scripts/python.exe -c \"from utils.supabase_client import VideoJob; print\\(''Model fixed''\\)\")",
+      "Bash(python -c \"from agents.publishing import publish_job; print\\(''import OK''\\)\")",
+      "Bash(python -c \"from utils.scheduler import run_once; print\\(''import OK''\\)\")",
+      "Bash(python -c \"from utils.supabase_client import VideoJob; v = VideoJob\\(id=''test'', status=''IDEA'', outline=[''a'',''b'']\\); print\\(''outline OK:'', v.outline\\)\")",
+      "Bash(python -c \"from agents.pipeline import run_pipeline; print\\(''import OK''\\)\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\MikeDonker\\projects\\yta-swarms"
+    ]
+  }
+}

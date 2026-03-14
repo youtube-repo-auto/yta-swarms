@@ -29,6 +29,8 @@ import os
 import sys
 from pathlib import Path
 
+from utils.supabase_client import supabase
+
 from agents.voice_generation import generate_voice_for_job
 
 from dotenv import load_dotenv
@@ -111,8 +113,31 @@ def step_research(job_id: str | None = None):
 def step_scriptwriting(job_id: str | None = None):
     """Run the Scriptwriting Agent on the next RESEARCHED job (or a specific job_id)."""
     from agents.scriptwriting import run_scriptwriting
+    from utils.viral_hooks import generate_viral_hook
 
     logger.info("── Step 3: Scriptwriting ─────────────────────────────────")
+    if job_id:
+        jobs = [job_id]
+    else:
+        # Next available RESEARCHED job
+        result = supabase.table('video_jobs').select('id').eq('status', 'RESEARCHED').limit(1).execute()
+        jobs = [row['id'] for row in (result.data or [])]
+    
+    if not jobs:
+        logger.warning("Geen RESEARCHED jobs beschikbaar")
+        return None
+    
+    # Viral hook voor SHORTS (vóór script schrijven)
+    for job_id in job_ids:
+        job_data = supabase.table('video_jobs').select('format,title_concept,niche').eq('id', job_id).single().execute().data
+        if job_data.get('format') == 'SHORT':
+            hook = generate_viral_hook(job_data['title_concept'], job_data.get('niche', 'snowball_wealth'))
+            supabase.table('video_jobs').update({
+                'hook_data': hook,
+                'hook_visual_prompt': hook['hook_visual']
+            }).eq('id', job_id).execute()
+            logger.info("✅ Viral hook toegevoegd job %s: %s", job_id, hook['hook_text'])
+    
     job = run_scriptwriting(job_id=job_id)
     if job is None:
         logger.warning("Scriptwriting: no job processed (nothing available).")

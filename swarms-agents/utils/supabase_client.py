@@ -65,7 +65,7 @@ class VideoJob(BaseModel):
     status: str
     niche: str | None = None
     title_concept: str | None = None
-    outline: str | None = None
+    outline: dict | list | str | None = None
     keyword_targets: list[str] | None = None
     estimated_appeal: int | None = Field(
         default=None,
@@ -91,14 +91,32 @@ class VideoJob(BaseModel):
     @classmethod
     def parse_json_list(cls, v):
         if isinstance(v, str):
-            return json.loads(v)
+            try:
+                return json.loads(v)
+            except Exception:
+                return [x.strip() for x in v.split(",") if x.strip()]
         return v
 
     @field_validator("research_data", mode="before")
     @classmethod
     def parse_json_dict(cls, v):
         if isinstance(v, str):
-            return json.loads(v)
+            try:
+                return json.loads(v)
+            except Exception:
+                return {}
+        return v
+
+    @field_validator("outline", mode="before")
+    @classmethod
+    def coerce_outline(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            try:
+                v = json.loads(v)
+            except Exception:
+                return {}
+        if isinstance(v, list):
+            return {str(i): item for i, item in enumerate(v)}
         return v
 
 # ---------------------------------------------------------------------------

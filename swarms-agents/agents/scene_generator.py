@@ -89,7 +89,7 @@ def generate_scenes_for_job(video_job_id: str) -> list[dict]:
 
     result = (
         supabase.table("video_jobs")
-        .select("script, title_concept")
+        .select("script, title_concept, niche, hook_data")
         .eq("id", video_job_id)
         .single()
         .execute()
@@ -99,6 +99,16 @@ def generate_scenes_for_job(video_job_id: str) -> list[dict]:
         raise ValueError(f"No script for job {video_job_id}")
 
     scenes = generate_scene_prompts(job["script"], job["title_concept"])
+
+    # Override scene 1 image_prompt with viral hook_visual when available
+    hook_data = job.get("hook_data")
+    if hook_data and scenes:
+        if isinstance(hook_data, str):
+            hook_data = json.loads(hook_data)
+        hook_visual = hook_data.get("hook_visual", "")
+        if hook_visual:
+            scenes[0]["image_prompt"] = hook_visual
+            print(f"OK hook_visual applied to scene 1 for job {video_job_id}")
 
     # Ensure pexels_query mirrors search_query for backwards compatibility
     for scene in scenes:

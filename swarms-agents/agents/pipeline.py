@@ -19,6 +19,11 @@ Exports: run_pipeline(video_job_id: str) -> dict
 """
 import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -116,21 +121,26 @@ def run_pipeline(video_job_id: str) -> dict:
     else:
         print(f"[pipeline] SKIP  research (status={status})")
 
-    # ------------------------------------------------------------------ #
+        # ------------------------------------------------------------------ #
     # Step 2: Script writing  (RESEARCHED → SCRIPTED)
     # Branch on format: SHORT → shorts_script_writer, LONG → scriptwriting
     # ------------------------------------------------------------------ #
     status = _fetch_status(video_job_id)
     if _status_index(status) < _status_index("SCRIPTED"):
         job_format = (_fetch_field(video_job_id, "format") or "LONG").upper()
+        logger.info("[pipeline] Script step: job_id=%s, format=%s", video_job_id, job_format)
+
         try:
             if job_format == "SHORT":
                 from agents.shorts_script_writer import run_shorts_scriptwriting
+                logger.info("[pipeline] Using SHORTS script writer for job %s", video_job_id)
                 _run_step("shorts_script_writer", run_shorts_scriptwriting, video_job_id)
             else:
                 from agents.scriptwriting import run_scriptwriting
+                logger.info("[pipeline] Using LONG script writer for job %s", video_job_id)
                 _run_step("script_writer", run_scriptwriting, job_id=video_job_id)
         except Exception as exc:
+            logger.exception("[pipeline] Script step failed for job %s (format=%s)", video_job_id, job_format)
             raise RuntimeError(f"[script_writer/{job_format}] failed: {exc}") from exc
     else:
         print(f"[pipeline] SKIP  script_writer (status={status})")
@@ -220,8 +230,13 @@ def run_pipeline(video_job_id: str) -> dict:
     if _status_index(status) < _status_index("PUBLISHED"):
         try:
             from agents.publishing import publish_job
-            result = _run_step("publishing", publish_job, video_job_id)
-            youtube_url = result.get("youtube_url")
+            _run_step("publishing", publish_job, video_job_id)
+            # Haal youtube_url op uit DB na publishing
+            from utils.supabase_client import get_client as _get_client
+            _job = _get_client().table("video_jobs").select("youtube_url").eq("id", video_job_id).single().execute().data
+            youtube_url = (_job or {}).get("youtube_url", "")
+            if youtube_url:
+                logger.info("[pipeline] Published: %s", youtube_url)
         except Exception as exc:
             raise RuntimeError(f"[publishing] failed: {exc}") from exc
     else:
@@ -236,3 +251,14 @@ def run_pipeline(video_job_id: str) -> dict:
         print(f"[pipeline] YouTube URL: {youtube_url}")
 
     return {"status": final_status, "youtube_url": youtube_url}
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) != 2:
+        print("Usage: python -m agents.pipeline <video_job_id>")
+        sys.exit(1)
+
+    job_id = sys.argv[1]
+    result = run_pipeline(job_id)
+    print("\n[pipeline] Final result:", result)

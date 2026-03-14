@@ -1,0 +1,40 @@
+2026-03-14 19:43:40,848 INFO utils.scheduler Scheduler gestart — interval 600s, channel 5400b43e-73ae-428b-b72d-a02e3d986cf1
+2026-03-14 19:43:42,955 INFO httpx HTTP Request: GET https://oixvgvsytuqpihnjbmwq.supabase.co/rest/v1/video_jobs?select=id&status=eq.SEO_OPTIMIZED&channel_id=eq.5400b43e-73ae-428b-b72d-a02e3d986cf1&order=updated_at&limit=1 "HTTP/2 200 OK"
+2026-03-14 19:43:43,158 INFO httpx HTTP Request: GET https://oixvgvsytuqpihnjbmwq.supabase.co/rest/v1/video_jobs?select=id&status=eq.IDEA&channel_id=eq.5400b43e-73ae-428b-b72d-a02e3d986cf1 "HTTP/2 200 OK"
+2026-03-14 19:43:43,260 INFO httpx HTTP Request: GET https://oixvgvsytuqpihnjbmwq.supabase.co/rest/v1/video_jobs?select=id&status=eq.IDEA&channel_id=eq.5400b43e-73ae-428b-b72d-a02e3d986cf1&order=created_at&limit=1 "HTTP/2 200 OK"
+2026-03-14 19:43:43,271 INFO utils.scheduler Pipeline starten voor job 839f061b-c2f4-476b-8b64-179abf1b0d75
+2026-03-14 19:43:43,364 INFO httpx HTTP Request: GET https://oixvgvsytuqpihnjbmwq.supabase.co/rest/v1/video_jobs?select=status&id=eq.839f061b-c2f4-476b-8b64-179abf1b0d75 "HTTP/2 200 OK"
+2026-03-14 19:43:43,433 INFO agents.pipeline [pipeline] START research
+2026-03-14 19:43:43,671 INFO httpx HTTP Request: GET https://oixvgvsytuqpihnjbmwq.supabase.co/rest/v1/video_jobs?select=%2A&id=eq.839f061b-c2f4-476b-8b64-179abf1b0d75 "HTTP/2 200 OK"
+2026-03-14 19:43:43,686 ERROR utils.scheduler Scheduler cycle fout: [research] failed: 1 validation error for VideoJob
+outline
+  Input should be a valid dictionary [type=dict_type, input_value=["Hook (eerste 30 seconde... maandelijks opzijzet.'], input_type=list]
+    For further information visit https://errors.pydantic.dev/2.12/v/dict_type
+Traceback (most recent call last):
+  File "C:\Users\MikeDonker\projects\yta-swarms\swarms-agents\agents\pipeline.py", line 118, in run_pipeline
+    _run_step("research", run_research, job_id=video_job_id)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MikeDonker\projects\yta-swarms\swarms-agents\agents\pipeline.py", line 86, in _run_step
+    result = fn(*args, **kwargs)
+  File "C:\Users\MikeDonker\projects\yta-swarms\swarms-agents\agents\research.py", line 85, in run_research
+    job = VideoJob(**resp.data)
+  File "C:\Users\MikeDonker\projects\yta-swarms\venv\Lib\site-packages\pydantic\main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for VideoJob
+outline
+  Input should be a valid dictionary [type=dict_type, input_value=["Hook (eerste 30 seconde... maandelijks opzijzet.'], input_type=list]
+    For further information visit https://errors.pydantic.dev/2.12/v/dict_type
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MikeDonker\projects\yta-swarms\swarms-agents\utils\scheduler.py", line 62, in run_once
+    run_pipeline(job_id)
+    ~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\MikeDonker\projects\yta-swarms\swarms-agents\agents\pipeline.py", line 120, in run_pipeline
+    raise RuntimeError(f"[research] failed: {exc}") from exc
+RuntimeError: [research] failed: 1 validation error for VideoJob
+outline
+  Input should be a valid dictionary [type=dict_type, input_value=["Hook (eerste 30 seconde... maandelijks opzijzet.'], input_type=list]
+    For further information visit https://errors.pydantic.dev/2.12/v/dict_type
+2026-03-14 19:43:43,724 INFO utils.scheduler Scheduler slaapt 600s...
