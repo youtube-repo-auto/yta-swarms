@@ -22,3 +22,5 @@ duckduckgo-search>=6.0.0   # Free fallback; optional if SerpAPI is used
 
 # Utilities (already stdlib, listed for clarity)
 # json, logging, pathlib, argparse → stdlib, no install needed
+
+ddgs
