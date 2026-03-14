@@ -108,7 +108,7 @@ def generate_voice_for_job(video_job_id: str, voice: str = DEFAULT_VOICE) -> str
         "script_word_count": word_count,
     }).eq("id", video_job_id).execute()
 
-    print(f"✓ Job {video_job_id} → VOICE_GENERATED")
+    print(f"OK Job {video_job_id} -> VOICE_GENERATED")
 
     # 5. Cleanup
     Path(audio_file).unlink(missing_ok=True)
