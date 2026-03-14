@@ -269,3 +269,7 @@ def _parse_research_json(raw: str) -> dict:
 
     return data
 
+
+# Alias for backwards-compatibility with test imports
+run_research_job = run_research
+

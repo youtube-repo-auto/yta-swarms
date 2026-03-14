@@ -165,3 +165,7 @@ def _generate_script(job: VideoJob) -> str:
         raise ValueError("Scriptwriting Agent returned an empty response.")
 
     return script
+
+
+# Alias for backwards-compatibility with test imports
+run_scriptwriting_job = run_scriptwriting
