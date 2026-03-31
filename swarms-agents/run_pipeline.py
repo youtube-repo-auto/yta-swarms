@@ -29,7 +29,8 @@ import os
 import sys
 from pathlib import Path
 
-from utils.supabase_client import supabase
+from utils.supabase_client import get_client as _get_client
+supabase = _get_client()
 
 from agents.voice_generation import generate_voice_for_job
 
@@ -128,7 +129,7 @@ def step_scriptwriting(job_id: str | None = None):
         return None
     
     # Viral hook voor SHORTS (vóór script schrijven)
-    for job_id in job_ids:
+    for job_id in jobs:
         job_data = supabase.table('video_jobs').select('format,title_concept,niche').eq('id', job_id).single().execute().data
         if job_data.get('format') == 'SHORT':
             hook = generate_viral_hook(job_data['title_concept'], job_data.get('niche', 'snowball_wealth'))

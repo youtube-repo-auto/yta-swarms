@@ -63,6 +63,15 @@ def run_once() -> None:
         else:
             logger.info("Geen IDEA jobs beschikbaar — wacht op volgende cyclus")
 
+        # 4. CTR check voor gepubliceerde video's (elke cyclus, niet-blokkerend)
+        try:
+            from agents.ctr_tracker import run_ctr_check
+            logger.info("CTR check starten...")
+            ctr_result = run_ctr_check()
+            logger.info("CTR check klaar: %s", ctr_result)
+        except Exception as ctr_exc:
+            logger.warning("CTR check mislukt (niet-kritiek): %s", ctr_exc)
+
     except Exception as exc:
         logger.error("Scheduler cycle fout: %s", exc, exc_info=True)
     finally:

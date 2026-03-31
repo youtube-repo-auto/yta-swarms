@@ -88,7 +88,7 @@ def _concatenate_clips(clip_paths: list[str], tmpdir: str) -> str:
     output_path = os.path.join(tmpdir, "video_silent.mp4")
     subprocess.run(
         [
-            "ffmpeg", "-y",
+            "/opt/homebrew/bin/ffmpeg", "-y",
             "-f", "concat", "-safe", "0",
             "-i", concat_list_path,
             "-c", "copy",
@@ -113,7 +113,7 @@ def _mux_audio(video_path: str, audio_path: str, tmpdir: str) -> str:
     output_path = os.path.join(tmpdir, f"final_{uuid.uuid4().hex}.mp4")
     subprocess.run(
         [
-            "ffmpeg", "-y",
+            "/opt/homebrew/bin/ffmpeg", "-y",
             "-i", video_path,
             "-i", audio_path,
             "-c:v", "copy",
@@ -195,7 +195,7 @@ def _audio_duration(audio_path: str) -> float:
     """Return duration of audio file in seconds using ffprobe."""
     result = subprocess.run(
         [
-            "ffprobe", "-v", "error",
+            "/opt/homebrew/bin/ffprobe", "-v", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
             audio_path,
@@ -305,7 +305,7 @@ def _trim_clip(src: str, duration: float, dst: str) -> None:
     """Trim and re-encode clip to H.264 720p so all clips are concat-compatible."""
     subprocess.run(
         [
-            "ffmpeg", "-y",
+            "/opt/homebrew/bin/ffmpeg", "-y",
             "-i", src,
             "-t", str(duration),
             "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,"
@@ -335,7 +335,7 @@ def _compress_final(video_path: str, tmpdir: str) -> str:
 
     subprocess.run(
         [
-            "ffmpeg", "-y",
+            "/opt/homebrew/bin/ffmpeg", "-y",
             "-i", video_path,
             "-c:v", "libx264", "-crf", "30", "-preset", "fast",
             "-c:a", "aac", "-b:a", "128k",
@@ -408,7 +408,7 @@ def generate_video_for_job(video_job_id: str) -> str:
     # 1. Fetch job
     result = (
         supabase.table("video_jobs")
-        .select("title_concept, scene_prompts, voice_url")
+        .select("title_concept, voice_url, script, scene_prompts")
         .eq("id", video_job_id)
         .single()
         .execute()
@@ -417,11 +417,6 @@ def generate_video_for_job(video_job_id: str) -> str:
     if not job:
         raise ValueError(f"Job {video_job_id} not found in Supabase")
 
-    if not job.get("scene_prompts"):
-        raise ValueError(
-            f"No scene_prompts for job {video_job_id} — "
-            "run Scene Generator first"
-        )
     if not job.get("voice_url"):
         raise ValueError(
             f"No voice_url for job {video_job_id} — "
@@ -429,9 +424,16 @@ def generate_video_for_job(video_job_id: str) -> str:
         )
 
     # 2. Parse en sorteer scenes
-    raw = job["scene_prompts"]
-    scenes: list[dict] = json.loads(raw) if isinstance(raw, str) else raw
-    scenes = sorted(scenes, key=lambda s: s.get("index", 0))
+    # Genereer scenes vanuit script als scene_prompts niet beschikbaar
+    raw = job.get("scene_prompts") or job.get("script") or "[]"
+    scenes_raw: list[dict] = json.loads(raw) if isinstance(raw, str) else raw
+
+    # Als script: maak 8 generieke scenes op basis van title
+    if not scenes_raw or not isinstance(scenes_raw[0], dict) or "index" not in scenes_raw[0]:
+        title = job.get("title_concept", "finance tips")
+        scenes_raw = [{"index": i+1, "search_query": title} for i in range(8)]
+
+    scenes = sorted(scenes_raw, key=lambda s: s.get("index", 0))
 
     logger.info(
         "Video generation started (mode=%s): '%s' — %d scenes",

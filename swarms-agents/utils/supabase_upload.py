@@ -5,7 +5,10 @@ import time
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 from supabase import Client
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

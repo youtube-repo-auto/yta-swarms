@@ -1,3 +1,4 @@
+import os
 """
 Content Planning Agent
 ======================
@@ -159,6 +160,7 @@ def _persist_ideas(ideas: list[VideoIdea], niche: str) -> list[str]:
         job = create_job(
             status="IDEA",
             niche=niche,
+            channel_id=os.getenv("CHANNEL_ID"),
             title_concept=idea.title_concept,
             outline=idea.outline,
             keyword_targets=idea.keyword_targets,

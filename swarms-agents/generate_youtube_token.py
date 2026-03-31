@@ -14,7 +14,11 @@ flow = InstalledAppFlow.from_client_config(
             "token_uri": "https://oauth2.googleapis.com/token",
         }
     },
-    scopes=["https://www.googleapis.com/auth/youtube.upload"],
+    scopes=[
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.readonly",
+        "https://www.googleapis.com/auth/yt-analytics.readonly",
+    ],
 )
 
 creds = flow.run_local_server(port=8080)
