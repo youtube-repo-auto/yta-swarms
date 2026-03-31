@@ -1,0 +1,24 @@
+# Jarvis Cron Agents for YTA Pipeline
+# ====================================
+# Copy this config into your Jarvis agents/cron directory,
+# or register via Jarvis CLI: jarvis agent register --file cron_agents.yaml
+#
+# If Jarvis doesn't support cron agents natively, use the fallback:
+#   python jarvis_tools/cron_scheduler_fallback.py
+
+agents:
+  - name: YTAPipelineAgent
+    description: Runs the next pending YouTube video job through the full pipeline
+    schedule: "0 * * * *"  # Every hour
+    tool: yta_run_pending_job
+    on_success: log
+    on_error: log  # Log error but don't stop — next run will retry
+    timeout: 1800  # 30 minutes
+
+  - name: YTADailyJobCreator
+    description: Creates new daily video jobs in the pipeline queue
+    schedule: "0 8 * * *"  # Every day at 08:00
+    tool: yta_create_daily_jobs
+    on_success: log
+    on_error: log
+    timeout: 120  # 2 minutes

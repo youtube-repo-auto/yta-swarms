@@ -8,6 +8,8 @@ from googleapiclient.errors import HttpError, ResumableUploadError
 
 from utils.retry import retry_call
 from utils.supabase_client import get_client, update_job
+from utils.telegram_notify import send_notification
+from utils.jarvis_memory import save_to_memory
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +136,18 @@ def publish_job(job_id: str) -> None:
             error_message=None,
         )
         logger.info("Job %s — PUBLISHED: %s", job_id, youtube_url)
+
+        # Telegram notification
+        send_notification(title=job["seo_title"], youtube_url=youtube_url)
+
+        # Save to Jarvis memory
+        save_to_memory(
+            job_id=job_id,
+            title=job["seo_title"],
+            niche=os.getenv("CHANNEL_NICHE", ""),
+            youtube_url=youtube_url,
+            script_length=len(job.get("seo_description", "")),
+        )
 
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
